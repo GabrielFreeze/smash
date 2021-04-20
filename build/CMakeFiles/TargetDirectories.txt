@@ -1,3 +1,0 @@
-/home/gabriel_freeze/smash/smash/build/CMakeFiles/rebuild_cache.dir
-/home/gabriel_freeze/smash/smash/build/CMakeFiles/edit_cache.dir
-/home/gabriel_freeze/smash/smash/build/CMakeFiles/smash.dir
