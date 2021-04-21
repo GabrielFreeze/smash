@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "methods.h": "c",
+        "config.h": "c"
+    }
+}

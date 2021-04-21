@@ -1,22 +1,31 @@
 #include <stdio.h>
 #include <string.h>
 #include "includes/linenoise-master/linenoise.c"
-
-int main(int argc, char* argv)
-{
-    printf("Hello World!!!!!\n");
+#include "includes/methods.c"
 
     char* input;
     char* prompt = {"init> "};
     char* exit_keyword = {"exit"};
+    char* delimiters = {" "};
+
+int main(int argc, char** argv)
+{
+    int count = 0;
 
     while (((input = linenoise(prompt)) != NULL) && strcmp(input, exit_keyword))
     {
         if (input[0] != '\0' && input[0] != '/')
         {
-            printf("%s\n",input);
-        }
+            printf("Predicted Token Count: %d\n",tokenlen(input));
 
+            for (char* token = strtok(input, delimiters); token != NULL; token = strtok(NULL, delimiters))
+            {
+                count ++;
+            }
+
+            printf("Actual Token Count: %d\n",count);
+        }
+        count = 0;
         free(input);
     }
 
