@@ -6,7 +6,7 @@
     char* input;
     char* prompt = {"init> "};
     char* exit_keyword = {"exit"};
-    char* delimiters = {" "};
+    char* delimiters = {" |;<>\t"};
 
 int main(int argc, char** argv)
 {
