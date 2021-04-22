@@ -1,5 +1,6 @@
 #include "methods.h"
-extern char* delimiters;
+#include "linenoise-master/linenoise.h"
+extern char* metacharacters;
 
 int tokenlen(char* string)
 {
@@ -19,10 +20,16 @@ int tokenlen(char* string)
 
 bool is_delim(char a)
 {
-    for (int i = 0; i < strlen(delimiters); i++)
+    for (int i = 0; i < strlen(metacharacters); i++)
     {
-        if (a == delimiters[i])
+        if (a == metacharacters[i])
             return true;           
     }
     return false;
+}
+
+int get_tokens(char** args, char* input)
+{
+
+    return 0;
 }
