@@ -1,8 +1,7 @@
 #include "methods.h"
 #include "linenoise-master/linenoise.h"
-extern char* metacharacters;
-
-int tokenlen(char* string)
+#include "config.h"
+int tokens_len(char* string)
 {
     int count = is_delim(string[0])? -1 : 0;
     char prev_char = '\0';
@@ -28,8 +27,24 @@ bool is_delim(char a)
     return false;
 }
 
-int get_tokens(char** args, char* input)
-{
+char** tokens_get(char* input, int* length)
+{  
+    char** tokens;
+    char* value;
+    *length = tokens_len(input);
+    
+    int index = 0;
 
-    return 0;
+    if ((tokens = (char**) malloc(*length * sizeof(char*))) == NULL)
+        return NULL;
+
+
+    for (char* current_token = strtok(input, metacharacters); current_token != NULL; current_token = strtok(NULL, metacharacters))
+    {
+        tokens[index] = (char*) malloc(ARG_SIZE);
+        strcpy(tokens[index], current_token);
+        index++;
+    }
+
+    return tokens;
 }

@@ -1,9 +1,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 
 
-int tokenlen(char* string);
+int tokens_len(char* string);
 bool is_delim(char a);
-int get_tokens(char** args, char* input); //Returns -1 on error, else length of args. Args will be dynamically allocated.
+char** tokens_get(char* input, int* length); 
