@@ -55,23 +55,21 @@ char** tokens_get(char* input, int* length)
     if ((tokens = (char**) malloc(*length * sizeof(char*))) == NULL)
         return NULL;
 
-    for (int i = 0; i < strlen(input); i++)
+
+
+        if(!is_delim(input, 0))
+        {
+        printf("!");
+        current_token[j++] = input[0];
+        }
+
+
+
+    for (int i = 1; i < strlen(input); i++)
     {
         check = true;
 
-        if (i == 0)
-        {
-            if(is_delim(input, i))
-                continue;
-            else
-            {
-            printf("!");
-            current_token[j++] = input[i];
-            }
-
-        }
-
-        else if(is_delim(input, i) && !is_delim(input, i-1))
+        if(is_delim(input, i) && !is_delim(input, i-1))
         {
             tokens[index] = (char*) malloc(ARG_SIZE);
             strncpy(tokens[index++], current_token, j);
