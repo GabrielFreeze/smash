@@ -10,8 +10,13 @@
 
 //______________________________________TODO___________________________________
 /*
-    Implement a function that frees token vector.
+    Implement a function that frees token vector. (Maybe)
+
+    BOG: After the first try, vector "current_token" in get_tokens gets filled
+    with garbage data that affects tokenization process. mother♥♥♥♥er
     
+    
+
     
 
 
@@ -33,8 +38,8 @@ int main(int argc, char** argv)
             
             if ((tokens = tokens_get(input, &token_num)) == NULL)
             {
-                fprintf(stderr, "Nah");
-                exit(1);
+                fprintf(stderr, "Nah\n");
+                continue;
             }
 
             for(int i = 0; i < token_num; i++)
