@@ -11,10 +11,6 @@
 //______________________________________TODO___________________________________
 /*
     Implement a function that frees token vector. (Maybe)
-
-    BOG: After the first try, vector "current_token" in get_tokens gets filled
-    with garbage data that affects tokenization process. mother♥♥♥♥er
-    
     
 
     
@@ -38,7 +34,7 @@ int main(int argc, char** argv)
             
             if ((tokens = tokens_get(input, &token_num)) == NULL)
             {
-                fprintf(stderr, "Nah\n");
+                fprintf(stderr, "Error while tokenising. Did a token exceed its buffer size?\n");
                 continue;
             }
 

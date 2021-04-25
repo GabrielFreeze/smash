@@ -38,64 +38,49 @@ bool is_delim(char* string, int j)
     return false;
 }
 
+
 char** tokens_get(char* input, int* length)
 {  
 
     int index = 0;
     int j = 0;
-    bool check = false;
     char** tokens;
-    char current_token[ARG_SIZE] = {'\0'};
+    char current_token[ARG_SIZE];
 
-    *length = tokens_len(input);
-    
-    if (*length == 0)
+    if ((tokens = (char**) malloc(*length * sizeof(char*))) == NULL || (*length = tokens_len(input)) == 0)
         return NULL;
 
-    if ((tokens = (char**) malloc(*length * sizeof(char*))) == NULL)
-        return NULL;
-
-
-
-        if(!is_delim(input, 0))
-        {
-        printf("!");
+    if(!is_delim(input, 0) && input[0] != '\\')
         current_token[j++] = input[0];
-        }
-
-
 
     for (int i = 1; i < strlen(input); i++)
     {
-        check = true;
+        if (j == ARG_SIZE)
+            return NULL;
 
         if(is_delim(input, i) && !is_delim(input, i-1))
         {
             tokens[index] = (char*) malloc(ARG_SIZE);
-            strncpy(tokens[index++], current_token, j);
+            current_token[j] = '\0';
+            strncpy(tokens[index++], current_token, j+1);
             
             j = 0;
-
-            printf("Token [%s] added.\n",tokens[index-1]);
             
-        }else
-        {
-            printf("!");
+        } else if(is_delim(input, i) || input[i] == '\\')
+            continue;
 
+        else
             current_token[j++] = input[i];
-        }
     }
 
-    if (j > 0 && check)
+    if (j > 0) //If j is greater than 0 , that means there is data in the current_token vector,
+                // which we need to placce in tokens.
     {
         tokens[index] = (char*) malloc(ARG_SIZE);
-        strncpy(tokens[index], current_token, j); 
-        printf("Token [%s] added.\n",tokens[index]);
-
+        current_token[j] = '\0';
+        strncpy(tokens[index], current_token, j+1); 
     }
        
-
-
     return tokens;
 }
 
