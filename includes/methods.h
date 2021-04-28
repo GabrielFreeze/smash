@@ -7,4 +7,4 @@
 
 int tokens_len(char* string);
 bool is_delim(char* string, int j);
-char** tokens_get(char* input, int* length); 
+char** tokens_get(char* input, int* length);

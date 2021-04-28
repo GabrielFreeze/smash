@@ -47,7 +47,7 @@ char** tokens_get(char* input, int* length)
     char** tokens;
     char current_token[ARG_SIZE];
 
-    if ((tokens = (char**) malloc(*length * sizeof(char*))) == NULL || (*length = tokens_len(input)) == 0)
+    if ((*length = tokens_len(input)) == 0 || ((tokens = (char**) malloc(*length * sizeof(char*))) == NULL))
         return NULL;
 
     if(!is_delim(input, 0) && input[0] != '\\')
@@ -74,19 +74,12 @@ char** tokens_get(char* input, int* length)
     }
 
     if (j > 0) //If j is greater than 0 , that means there is data in the current_token vector,
-                // which we need to placce in tokens.
+                // which we need to place in tokens.
     {
         tokens[index] = (char*) malloc(ARG_SIZE);
         current_token[j] = '\0';
-        strncpy(tokens[index], current_token, j+1); 
+        strncpy(tokens[index], current_token, j+1);
     }
        
     return tokens;
 }
-
-    // for (char* current_token = strtok(input, metacharacters); current_token != NULL; current_token = strtok(NULL, metacharacters))
-    // {
-    //     tokens[index] = (char*) malloc(ARG_SIZE);
-    //     strcpy(tokens[index], current_token);
-    //     index++;
-    // }

@@ -22,9 +22,10 @@
 
 int main(int argc, char** argv)
 {
-    char** tokens;
+
     char* input;
     int token_num;
+    char** tokens;
 
 
     while (((input = linenoise(prompt)) != NULL) && strcmp(input, exit_keyword))
@@ -42,9 +43,10 @@ int main(int argc, char** argv)
             {
                 printf("%s\n",tokens[i]);
                 free(tokens[i]);
+
             }
 
-            free(tokens);
+
         }
         free(input);
     }
