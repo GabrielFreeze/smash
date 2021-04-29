@@ -6,5 +6,5 @@
 
 
 int tokens_len(char* string);
-bool is_delim(char* string, int j);
+int char_type(char* string, int j);
 char** tokens_get(char* input, int* length);

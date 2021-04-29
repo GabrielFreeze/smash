@@ -33,18 +33,22 @@ int main(int argc, char** argv)
         if (input[0] != '\0' && input[0] != '/')
         {
             
-            if ((tokens = tokens_get(input, &token_num)) == NULL)
-            {
-                fprintf(stderr, "Error while tokenising. Did a token exceed its buffer size?\n");
-                continue;
-            }
+            printf("%d\n", tokens_len(input));
 
-            for(int i = 0; i < token_num; i++)
-            {
-                printf("%s\n",tokens[i]);
-                free(tokens[i]);
 
-            }
+
+            // if ((tokens = tokens_get(input, &token_num)) == NULL)
+            // {
+            //     fprintf(stderr, "Error while tokenising. Did a token exceed its buffer size?\n");
+            //     continue;
+            // }
+
+            // for(int i = 0; i < token_num; i++)
+            // {
+            //     printf("%s\n",tokens[i]);
+            //     free(tokens[i]);
+
+            // }
 
 
         }
