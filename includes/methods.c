@@ -56,10 +56,11 @@ int tokens_len(char* string)
 }
 int char_type(char* string, int j)
 {
-   
-    if (j < 0)
-        return NONE;
 
+    if (j < 0){
+        return NONE;
+    }
+        
     for (int i = 0; i < strlen(quotes); i++)
     {
         if (string[j] == quotes[i])
@@ -81,14 +82,17 @@ int char_type(char* string, int j)
         }
     }
     
-    for (int i = 0; i < strlen(quotes); i++)
-    {
-        if ((char_type(string, j-1) == ESCAPE) && (string[j] != '$') && (string[j] != quotes[i]))
-            return NORMAL; //It can be META or ESCAPE, but since it has an ESCAPE before it, it is treated as NORMAL
-    }
 
     if (string[j] == '\\')
-        return ESCAPE; //It is the escape character
+    {
+        if (is_escape(string,j))
+            return ESCAPE; //It is the escape character
+        else
+            return NORMAL;
+    }
+        
+    
+        
 
     if (string[j] == '$')
         return VARIABLE; //It is the variable expansion character
@@ -114,6 +118,27 @@ int char_type(char* string, int j)
     // }
     // return false;
 }
+bool is_escape(char* string, int upper)
+{
+    int lower = upper;
+    int length = strlen(string);  
+    int count = 0; 
+
+    while (lower >= 0 && string[lower] == '\\')
+    {
+        lower --;
+    }
+
+    
+
+    if (((upper-(lower+1))% 2 == 0))
+        return true;
+    else
+        return false;
+
+
+}
+
 char** tokens_get(char* input, int* length, int* error)
 {  
     
