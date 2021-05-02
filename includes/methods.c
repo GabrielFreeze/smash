@@ -5,54 +5,31 @@ int tokens_len(char* string)
 {
     int count = 0;
     bool in_quotes = false;
-    int type, prev_type;
+    int type, prev_type = NONE;
 
     for(int i = 0; i < strlen(string); i++)
     {
         type = char_type(string,i);
-        prev_type = char_type(string,i-1);
 
         if (type == QUOTE)
         {
-            if (!in_quotes && prev_type == NORMAL)
-                ++count;
-
-
-            if(in_quotes && prev_type != QUOTE)
+            if((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
                 ++count;
 
             in_quotes = in_quotes? false:true;
-
         }
            
         if (in_quotes)
             continue;
 
         if (type == META && prev_type == NORMAL)
-            ++count;  
+            ++count;
+
+        prev_type = type;
     }
 
     return (type == NORMAL)? count+1 : count;
     
-    
-    
-
-
-
-    // int count = 0;
-    // int len = strlen(string);
-
-    // for (int i = 1; i < len; i++)
-    // {
-
-    //     if (is_delim(string, i) && !is_delim(string, i-1))
-    //         count ++;
-            
-    // }
-    // int val = is_delim(string, len-1)? count : count+1;
-
-    // printf("Number of tokens is: %d\n", val);
-    // return val;
 }
 int char_type(char* string, int j)
 {
@@ -89,24 +66,6 @@ int char_type(char* string, int j)
 
     return NORMAL; //If its none of the above, then its just a normal character.
 
-
-
-
-
-    // for (int i = 0; i < strlen(metacharacters); i++)
-    // {   
-    //     if (j == 0)
-    //     {
-    //         if (string[j] == metacharacters[i])
-    //             return true;
-    //         else
-    //             continue;
-    //     }
-
-    //     if (string[j] == metacharacters[i] && string[j-1] != '\\')
-    //         return true;           
-    // }
-    // return false;
 }
 int is_escape(char* string, int upper)
 {
@@ -118,7 +77,6 @@ int is_escape(char* string, int upper)
     return ((upper-lower) % 2 == 0)? NORMAL:ESCAPE;
 
 }
-
 char** tokens_get(char* input, int* length, int* error)
 {  
     
@@ -127,7 +85,7 @@ char** tokens_get(char* input, int* length, int* error)
     char** tokens;
     char current_token[TOKEN_SIZE];
     bool in_quotes = false;
-    int type, prev_type;
+    int type, prev_type = NONE;
 
     if ((*length = tokens_len(input)) == 0)
     {
@@ -140,14 +98,10 @@ char** tokens_get(char* input, int* length, int* error)
         *error = MEMORY_ERROR;
         return NULL;
     }
-        
-
 
     for (int i = 0; i < strlen(input); i++)
     {
-
         type = char_type(input, i);
-        prev_type = char_type(input, i-1);
 
         if (j == TOKEN_SIZE)
         {
@@ -155,10 +109,8 @@ char** tokens_get(char* input, int* length, int* error)
             return NULL;
         }
             
-
         if (type == QUOTE)
         {
-  
             if ((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
             {
                 if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
@@ -166,6 +118,7 @@ char** tokens_get(char* input, int* length, int* error)
                     *error = MEMORY_ERROR;
                     return NULL;
                 }
+
                 current_token[j++] = '\0';
                 strncpy(tokens[index++], current_token, j);
             
@@ -199,11 +152,10 @@ char** tokens_get(char* input, int* length, int* error)
         }
         else
             current_token[j++] = input[i];
-
-
             
-    }
 
+        prev_type = type;
+    }
 
     if (j > 0) //If j is greater than 0 , that means there is data in the current_token vector
     {
@@ -216,57 +168,7 @@ char** tokens_get(char* input, int* length, int* error)
         strncpy(tokens[index], current_token, j);
     }
 
-
-
     return tokens;
 
-
-
-    // int index = 0;
-    // int j = 0;
-    // char** tokens;
-    // char current_token[ARG_SIZE];
-    // bool in_quotes = false;
-
-    // if ((*length = tokens_len(input)) == 0 || ((tokens = (char**) malloc(*length * sizeof(char*))) == NULL))
-    //     return NULL;
-
-
-
-
-    // if(!is_delim(input, 0) && input[0] != '\\')
-    //     current_token[j++] = input[0];
-
-
-
-    // for (int i = 1; i < strlen(input); i++)
-    // {
-    //     if (j == ARG_SIZE)
-    //         return NULL;
-
-    //     if(is_delim(input, i) && !is_delim(input, i-1))
-    //     {
-    //         tokens[index] = (char*) malloc(ARG_SIZE);
-    //         current_token[j] = '\0';
-    //         strncpy(tokens[index++], current_token, j+1);
-            
-    //         j = 0;
-            
-    //     } else if(is_delim(input, i) || input[i] == '\\')
-    //         continue;
-
-    //     else
-    //         current_token[j++] = input[i];
-    // }
-
-    // if (j > 0) //If j is greater than 0 , that means there is data in the current_token vector,
-    //             // which we need to place in tokens.
-    // {
-    //     tokens[index] = (char*) malloc(ARG_SIZE);
-    //     current_token[j] = '\0';
-    //     strncpy(tokens[index], current_token, j+1);
-    // }
-       
-    // return tokens;
 }
 
