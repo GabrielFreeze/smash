@@ -24,7 +24,7 @@ int main(int argc, char** argv)
 {
 
     char* input;
-    int token_num;
+    int token_num, error;
     char** tokens;
 
 
@@ -32,23 +32,27 @@ int main(int argc, char** argv)
     {
         if (input[0] != '\0' && input[0] != '/')
         {
-            
-            printf("%d\n", tokens_len(input));
 
 
+            if ((tokens = tokens_get(input, &token_num, &error)) == NULL)
+            {
+                if (error == MEMORY_ERROR)
+                    fprintf(stderr, "Error while allocating memory.\n");
 
-            // if ((tokens = tokens_get(input, &token_num)) == NULL)
-            // {
-            //     fprintf(stderr, "Error while tokenising. Did a token exceed its buffer size?\n");
-            //     continue;
-            // }
+                if (error == BUFFER_OVERFLOW_ERROR)
+                    fprintf(stderr, "Did a token exceed its buffer size of %d.\n",TOKEN_SIZE);
 
-            // for(int i = 0; i < token_num; i++)
-            // {
-            //     printf("%s\n",tokens[i]);
-            //     free(tokens[i]);
+                if (error == LENGTH_ERROR)
+                    fprintf(stderr, "The inputted string had a token length of 0.\n");
+                continue;
+            }
+            printf("Number of tokens: %d\n",token_num);
+            for(int i = 0; i < token_num; i++)
+            {
+                printf("%s\n",tokens[i]);
+                free(tokens[i]);
 
-            // }
+            }
 
 
         }

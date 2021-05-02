@@ -14,10 +14,14 @@ int tokens_len(char* string)
 
         if (type == QUOTE)
         {
+            if (!in_quotes && prev_type == NORMAL)
+                ++count;
+
+
             if(in_quotes && prev_type != QUOTE)
                 ++count;
 
-            in_quotes = (in_quotes? false:true);
+            in_quotes = in_quotes? false:true;
 
         }
            
@@ -32,15 +36,6 @@ int tokens_len(char* string)
     
     
     
-
-
-
-
-
-
-
-
-
 
 
 
@@ -61,12 +56,7 @@ int tokens_len(char* string)
 }
 int char_type(char* string, int j)
 {
-    if (string[j] == '\\')
-        return ESCAPE; //It is the escape character
-
-    if (string[j] == '$')
-        return VARIABLE; //It is the variable expansion character
-    
+   
     if (j < 0)
         return NONE;
 
@@ -90,7 +80,18 @@ int char_type(char* string, int j)
                 return META; //It is a metacharacter, but the one before it was not an escape character
         }
     }
+    
+    for (int i = 0; i < strlen(quotes); i++)
+    {
+        if ((char_type(string, j-1) == ESCAPE) && (string[j] != '$') && (string[j] != quotes[i]))
+            return NORMAL; //It can be META or ESCAPE, but since it has an ESCAPE before it, it is treated as NORMAL
+    }
 
+    if (string[j] == '\\')
+        return ESCAPE; //It is the escape character
+
+    if (string[j] == '$')
+        return VARIABLE; //It is the variable expansion character
 
     return NORMAL; //If its none of the above, then its just a normal character.
 
@@ -113,23 +114,102 @@ int char_type(char* string, int j)
     // }
     // return false;
 }
-char** tokens_get(char* input, int* length)
+char** tokens_get(char* input, int* length, int* error)
 {  
     
-    int tokens_index = 0;
-    int current_token_index = 0;
+    int index = 0;
+    int j = 0;
     char** tokens;
     char current_token[TOKEN_SIZE];
     bool in_quotes = false;
+    int type, prev_type;
 
-    if ((*length = tokens_len(input)) == 0 || ((tokens = (char**) malloc(*length * sizeof(char*))) == NULL))
+    if ((*length = tokens_len(input)) == 0)
+    {
+        *error = LENGTH_ERROR;
         return NULL;
+    }
+
+    if (((tokens = (char**) malloc(*length * sizeof(char*))) == NULL))
+    {
+        *error = MEMORY_ERROR;
+        return NULL;
+    }
+        
+
 
     for (int i = 0; i < strlen(input); i++)
     {
 
+        type = char_type(input, i);
+        prev_type = char_type(input, i-1);
+
+        if (j == TOKEN_SIZE)
+        {
+            *error =  BUFFER_OVERFLOW_ERROR;
+            return NULL;
+        }
+            
+
+        if (type == QUOTE)
+        {
+  
+            if ((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
+            {
+                if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
+                {   
+                    *error = MEMORY_ERROR;
+                    return NULL;
+                }
+                current_token[j++] = '\0';
+                strncpy(tokens[index++], current_token, j);
+            
+                j = 0;  
+            }
+                
+            in_quotes = in_quotes? false:true;
+            continue;
+            
+        }            
+
+        if (in_quotes)
+            type = NORMAL;
+
+
+        if (type == META && prev_type == NORMAL)
+        {
+            if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
+                {   
+                    *error = MEMORY_ERROR;
+                    return NULL;
+                }
+            current_token[j++] = '\0';
+            strncpy(tokens[index++], current_token, j);
+            
+            j = 0;
+        }
+        else if ((type == META) || (type == ESCAPE))
+        {
+            continue;
+        }
+        else
+            current_token[j++] = input[i];
+
+
+            
     }
 
+
+    if (j > 0) //If j is greater than 0 , that means there is data in the current_token vector
+    {
+        if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
+        {   
+            *error = MEMORY_ERROR;
+            return NULL;
+        }
+        current_token[j++] = '\0';
+        strncpy(tokens[index], current_token, j);
+    }
 
 
 
