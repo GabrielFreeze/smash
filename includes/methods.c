@@ -74,26 +74,16 @@ int char_type(char* string, int j)
             if (j == 0)
                 return META; //Its the first character, and its meta.
 
-
-            if (string[j-1] == '\\')
+            else if (string[j-1] == '\\')
                 return NORMAL; //It is a metacharacter, but the one before it was an escape character, therefore it is treated as normal
             else
                 return META; //It is a metacharacter, but the one before it was not an escape character
         }
     }
     
-
     if (string[j] == '\\')
-    {
-        if (is_escape(string,j))
-            return ESCAPE; //It is the escape character
-        else
-            return NORMAL;
-    }
-        
+        return is_escape(string,j);        
     
-        
-
     if (string[j] == '$')
         return VARIABLE; //It is the variable expansion character
 
@@ -118,24 +108,14 @@ int char_type(char* string, int j)
     // }
     // return false;
 }
-bool is_escape(char* string, int upper)
+int is_escape(char* string, int upper)
 {
     int lower = upper;
-    int length = strlen(string);  
-    int count = 0; 
 
     while (lower >= 0 && string[lower] == '\\')
-    {
         lower --;
-    }
 
-    
-
-    if (((upper-(lower+1))% 2 == 0))
-        return true;
-    else
-        return false;
-
+    return ((upper-lower) % 2 == 0)? NORMAL:ESCAPE;
 
 }
 

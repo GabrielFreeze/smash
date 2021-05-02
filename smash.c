@@ -43,7 +43,7 @@ int main(int argc, char** argv)
                     fprintf(stderr, "Did a token exceed its buffer size of %d.\n",TOKEN_SIZE);
 
                 if (error == LENGTH_ERROR)
-                    fprintf(stderr, "The inputted string had a token length of 0.\n");
+                    fprintf(stderr, "Invalid Input. Do you have an escape character alone?\n");
                 continue;
             }
             printf("Number of tokens: %d\n",token_num);
