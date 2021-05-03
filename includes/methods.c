@@ -11,24 +11,26 @@ int tokens_len(char* string)
     {
         type = char_type(string,i);
 
+        if (type == QUOTE && prev_type == ESCAPE)
+            return -1;
+
+
         if (type == QUOTE)
         {
-            if((in_quotes && !(prev_type == QUOTE || prev_type == ESCAPE)) || (!in_quotes && prev_type == NORMAL))
+            if((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
                 ++count;
 
             in_quotes = in_quotes? false:true;
         }
 
-        if (in_quotes){
-            prev_type = type;
-            continue;
-        }
-
+        if (in_quotes)
+            goto end;
 
         if (type == META && prev_type == NORMAL)
             ++count;
 
-        prev_type = type;
+        end:
+            prev_type = type;
     }
 
     return (type == NORMAL)? count+1 : count;
@@ -51,33 +53,44 @@ int char_type(char* string, int j)
     {
         if (string[j] == metacharacters[i])
         {
-            if (j == 0)
-                return META; //Its the first character, and its meta.
-
-            else if (string[j-1] == '\\')
-                return NORMAL; //It is a metacharacter, but the one before it was an escape character, therefore it is treated as normal
+            if (is_deref(string, j))
+                return NORMAL;
             else
-                return META; //It is a metacharacter, but the one before it was not an escape character
+                return META;
         }
     }
     
     if (string[j] == '\\')
-        return is_escape(string,j);        
+    {
+        if (is_deref(string, j))
+            return NORMAL;
+        else
+            return ESCAPE;
+    }
     
     if (string[j] == '$')
-        return VARIABLE; //It is the variable expansion character
+    {
+        if (is_deref(string,j))
+            return NORMAL;
+        else
+            return VARIABLE;
+    }
 
     return NORMAL; //If its none of the above, then its just a normal character.
 
 }
-int is_escape(char* string, int upper)
+bool is_deref(char* string, int upper)
 {
-    int lower = upper;
+    if (upper == 0)
+        return false;
+
+    int lower = upper-1;
+
 
     while (lower >= 0 && string[lower] == '\\')
         lower --;
 
-    return ((upper-lower) % 2 == 0)? NORMAL:ESCAPE;
+    return ((upper-lower) % 2 == 0);
 
 }
 char** tokens_get(char* input, int* length, int* error)
@@ -90,7 +103,7 @@ char** tokens_get(char* input, int* length, int* error)
     bool in_quotes = false;
     int type, prev_type = NONE;
 
-    if ((*length = tokens_len(input)) == 0)
+    if ((*length = tokens_len(input)) <= 0)
     {
         *error = LENGTH_ERROR;
         return NULL;
@@ -129,8 +142,7 @@ char** tokens_get(char* input, int* length, int* error)
             }
                 
             in_quotes = in_quotes? false:true;
-            prev_type = type;
-            continue;
+            goto end;
             
         }            
 
@@ -151,15 +163,12 @@ char** tokens_get(char* input, int* length, int* error)
             j = 0;
         }
         else if ((type == META) || (type == ESCAPE))
-        {
-            prev_type = type;
-            continue;
-        }
+            goto end;
         else
             current_token[j++] = input[i];
             
-
-        prev_type = type;
+        end:
+            prev_type = type;
     }
 
     if (j > 0) //If j is greater than 0 , that means there is data in the current_token vector
