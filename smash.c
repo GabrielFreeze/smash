@@ -10,7 +10,7 @@
 
 //______________________________________TODO___________________________________
 /*
-    Implement a function that frees token vector. (Maybe)
+    If the user attempts to use \ on a ", raise an error in the token_len function.
     
 
     

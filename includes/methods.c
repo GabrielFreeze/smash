@@ -13,14 +13,17 @@ int tokens_len(char* string)
 
         if (type == QUOTE)
         {
-            if((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
+            if((in_quotes && !(prev_type == QUOTE || prev_type == ESCAPE)) || (!in_quotes && prev_type == NORMAL))
                 ++count;
 
             in_quotes = in_quotes? false:true;
         }
-           
-        if (in_quotes)
+
+        if (in_quotes){
+            prev_type = type;
             continue;
+        }
+
 
         if (type == META && prev_type == NORMAL)
             ++count;
@@ -126,11 +129,12 @@ char** tokens_get(char* input, int* length, int* error)
             }
                 
             in_quotes = in_quotes? false:true;
+            prev_type = type;
             continue;
             
         }            
 
-        if (in_quotes)
+        if (in_quotes && type != ESCAPE && type != VARIABLE)
             type = NORMAL;
 
 
@@ -148,6 +152,7 @@ char** tokens_get(char* input, int* length, int* error)
         }
         else if ((type == META) || (type == ESCAPE))
         {
+            prev_type = type;
             continue;
         }
         else
