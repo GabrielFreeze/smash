@@ -11,9 +11,6 @@ int tokens_len(char* string)
     {
         type = char_type(string,i);
 
-        if (type == QUOTE && prev_type == ESCAPE)
-            return -1;
-
 
         if (type == QUOTE)
         {
@@ -46,7 +43,12 @@ int char_type(char* string, int j)
     for (int i = 0; i < strlen(quotes); i++)
     {
         if (string[j] == quotes[i])
-            return QUOTE; //It is a quoting character
+        {
+            if (is_deref(string,j))
+                return NORMAL;
+            else
+                return QUOTE;
+        }
     }
 
     for (int i = 0; i < strlen(metacharacters); i++)
@@ -93,11 +95,26 @@ bool is_deref(char* string, int upper)
     return ((upper-lower) % 2 == 0);
 
 }
+void handle_error(int error)
+{
+    if (error == MEMORY_ERROR)
+        fprintf(stderr, MEMORY_ERROR_MSG) ;
+
+    if (error == BUFFER_OVERFLOW_ERROR)
+        fprintf(stderr, BUFFER_ERROR_MSG,TOKEN_SIZE);
+
+    if (error == PARSE_ERROR)
+        fprintf(stderr, PARSE_ERROR_MSG);
+        
+    if (error == VARIABLE_ASSIGNMENT_ERROR)
+        fprintf(stderr, VARIABLE_ASSIGNMENT_MSG);
+}
 char** tokens_get(char* input, int* length, int* error)
 {  
     
     int index = 0;
     int j = 0;
+    int var_count = 0;
     char** tokens;
     char current_token[TOKEN_SIZE];
     bool in_quotes = false;
@@ -105,7 +122,7 @@ char** tokens_get(char* input, int* length, int* error)
 
     if ((*length = tokens_len(input)) <= 0)
     {
-        *error = LENGTH_ERROR;
+        *error = PARSE_ERROR;
         return NULL;
     }
 
@@ -124,7 +141,13 @@ char** tokens_get(char* input, int* length, int* error)
             *error =  BUFFER_OVERFLOW_ERROR;
             return NULL;
         }
-            
+        
+        if (type == VARIABLE && ++var_count > 1)
+        {
+            *error = VARIABLE_ASSIGNMENT_ERROR;
+            return NULL;
+        }
+        
         if (type == QUOTE)
         {
             if ((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
@@ -137,8 +160,9 @@ char** tokens_get(char* input, int* length, int* error)
 
                 current_token[j++] = '\0';
                 strncpy(tokens[index++], current_token, j);
-            
+
                 j = 0;  
+                var_count = 0;
             }
                 
             in_quotes = in_quotes? false:true;
@@ -149,6 +173,12 @@ char** tokens_get(char* input, int* length, int* error)
         if (in_quotes && type != ESCAPE && type != VARIABLE)
             type = NORMAL;
 
+        if (in_quotes && type == VARIABLE)
+        {
+            *error = VARIABLE_ASSIGNMENT_ERROR;
+            return NULL;
+        }
+            
 
         if (type == META && prev_type == NORMAL)
         {
@@ -181,7 +211,7 @@ char** tokens_get(char* input, int* length, int* error)
         current_token[j++] = '\0';
         strncpy(tokens[index], current_token, j);
     }
-
+    *error = 0;
     return tokens;
 
 }

@@ -10,11 +10,7 @@
 
 //______________________________________TODO___________________________________
 /*
-    If the user attempts to use \ on a ", raise an error in the token_len function.
     
-
-    
-
 
 
 
@@ -36,16 +32,13 @@ int main(int argc, char** argv)
 
             if ((tokens = tokens_get(input, &token_num, &error)) == NULL)
             {
-                if (error == MEMORY_ERROR)
-                    fprintf(stderr, "Error while allocating memory.\n");
-
-                if (error == BUFFER_OVERFLOW_ERROR)
-                    fprintf(stderr, "Did a token exceed its buffer size of %d.\n",TOKEN_SIZE);
-
-                if (error == LENGTH_ERROR)
-                    fprintf(stderr, "Invalid Input. Do you have an escape character alone?\n");
-                continue;
+                handle_error(error);
+                continue;     
+                
             }
+
+
+
             printf("Number of tokens: %d\n",token_num);
             for(int i = 0; i < token_num; i++)
             {
