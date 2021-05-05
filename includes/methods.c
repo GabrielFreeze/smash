@@ -109,12 +109,13 @@ void handle_error(int error)
     if (error == VARIABLE_ASSIGNMENT_ERROR)
         fprintf(stderr, VARIABLE_ASSIGNMENT_MSG);
 }
-char** tokens_get(char* input, int* length, int* error)
+char** tokens_get(char* input, int* length, int* error, int** var_indices)
 {  
     
     int index = 0;
     int j = 0;
     int var_count = 0;
+    int var_index = 0;
     char** tokens;
     char current_token[TOKEN_SIZE];
     bool in_quotes = false;
@@ -131,6 +132,7 @@ char** tokens_get(char* input, int* length, int* error)
         *error = MEMORY_ERROR;
         return NULL;
     }
+ 
 
     for (int i = 0; i < strlen(input); i++)
     {
@@ -147,11 +149,18 @@ char** tokens_get(char* input, int* length, int* error)
             *error = VARIABLE_ASSIGNMENT_ERROR;
             return NULL;
         }
-        
+
+        if (in_quotes && type == VARIABLE)
+        {
+            *error = VARIABLE_ASSIGNMENT_ERROR;
+            return NULL;
+        }
+
         if (type == QUOTE)
         {
             if ((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
             {
+
                 if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
                 {   
                     *error = MEMORY_ERROR;
@@ -161,8 +170,8 @@ char** tokens_get(char* input, int* length, int* error)
                 current_token[j++] = '\0';
                 strncpy(tokens[index++], current_token, j);
 
+
                 j = 0;  
-                var_count = 0;
             }
                 
             in_quotes = in_quotes? false:true;
@@ -173,11 +182,7 @@ char** tokens_get(char* input, int* length, int* error)
         if (in_quotes && type != ESCAPE && type != VARIABLE)
             type = NORMAL;
 
-        if (in_quotes && type == VARIABLE)
-        {
-            *error = VARIABLE_ASSIGNMENT_ERROR;
-            return NULL;
-        }
+
             
 
         if (type == META && prev_type == NORMAL)
@@ -187,9 +192,18 @@ char** tokens_get(char* input, int* length, int* error)
                     *error = MEMORY_ERROR;
                     return NULL;
                 }
+            
+
+            // if (var_count)
+            // {
+            //     *var_indices[var_index++] = index;
+            // }
+
             current_token[j++] = '\0';
             strncpy(tokens[index++], current_token, j);
-            
+
+
+            var_count = 0;
             j = 0;
         }
         else if ((type == META) || (type == ESCAPE))
@@ -198,7 +212,13 @@ char** tokens_get(char* input, int* length, int* error)
             current_token[j++] = input[i];
             
         end:
-            prev_type = type;
+            prev_type = type;     
+    }
+
+    if(in_quotes)
+    {
+        *error = PARSE_ERROR;
+        return NULL;
     }
 
     if (j > 0) //If j is greater than 0 , that means there is data in the current_token vector
@@ -208,10 +228,14 @@ char** tokens_get(char* input, int* length, int* error)
             *error = MEMORY_ERROR;
             return NULL;
         }
+        // if (var_count)
+        // {
+        //     *var_indices[var_index] = index;
+        // }
         current_token[j++] = '\0';
         strncpy(tokens[index], current_token, j);
     }
-    *error = 0;
+
     return tokens;
 
 }

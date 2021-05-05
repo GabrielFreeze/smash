@@ -10,7 +10,7 @@
 
 //______________________________________TODO___________________________________
 /*
-    
+  Function that frees tokens if tokens_get fails during process.  
 
 
 
@@ -22,6 +22,7 @@ int main(int argc, char** argv)
     char* input;
     int token_num, error;
     char** tokens;
+    int* variable_indices;
 
 
     while (((input = linenoise(prompt)) != NULL) && strcmp(input, exit_keyword))
@@ -30,7 +31,7 @@ int main(int argc, char** argv)
         {
 
 
-            if ((tokens = tokens_get(input, &token_num, &error)) == NULL)
+            if ((tokens = tokens_get(input, &token_num, &error, &variable_indices)) == NULL)
             {
                 handle_error(error);
                 continue;     
@@ -43,6 +44,7 @@ int main(int argc, char** argv)
             for(int i = 0; i < token_num; i++)
             {
                 printf("%s\n",tokens[i]);
+                // printf("%d\n",variable_indices[i]);
                 free(tokens[i]);
 
             }
