@@ -109,14 +109,15 @@ void handle_error(int error)
     if (error == VARIABLE_ASSIGNMENT_ERROR)
         fprintf(stderr, VARIABLE_ASSIGNMENT_MSG);
 }
-char** tokens_get(char* input, int* length, int* error, int** var_indices)
+char** tokens_get(char* input, int* length, int* error, int** var_indices, int* var_indices_length)
 {  
     
     int index = 0;
     int j = 0;
     int var_count = 0;
-    int var_index = 0;
+    int var_index;
     char** tokens;
+    int* var_indices2;
     char current_token[TOKEN_SIZE];
     bool in_quotes = false;
     int type, prev_type = NONE;
@@ -127,7 +128,8 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices)
         return NULL;
     }
 
-    if (((tokens = (char**) malloc(*length * sizeof(char*))) == NULL))
+    if (((tokens = (char**) malloc(*length * sizeof(char*))) == NULL) ||
+    ((var_indices2 = (int*) malloc(*length * sizeof(int))) == NULL))
     {
         *error = MEMORY_ERROR;
         return NULL;
@@ -141,18 +143,28 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices)
         if (j == TOKEN_SIZE)
         {
             *error =  BUFFER_OVERFLOW_ERROR;
+            tokens_free(tokens, index);
             return NULL;
         }
         
         if (type == VARIABLE && ++var_count > 1)
         {
             *error = VARIABLE_ASSIGNMENT_ERROR;
+            tokens_free(tokens, index);
             return NULL;
         }
 
+        if (type == VARIABLE && j > 0)
+        {
+            *error = VARIABLE_ASSIGNMENT_ERROR;
+            tokens_free(tokens, index);
+            return NULL;
+        }
+        
         if (in_quotes && type == VARIABLE)
         {
             *error = VARIABLE_ASSIGNMENT_ERROR;
+            tokens_free(tokens, index);
             return NULL;
         }
 
@@ -164,6 +176,7 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices)
                 if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
                 {   
                     *error = MEMORY_ERROR;
+                    tokens_free(tokens, index);
                     return NULL;
                 }
 
@@ -183,21 +196,20 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices)
             type = NORMAL;
 
 
-            
-
         if (type == META && prev_type == NORMAL)
         {
             if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
                 {   
                     *error = MEMORY_ERROR;
+                    tokens_free(tokens, index);
                     return NULL;
                 }
             
+            if (var_count)
+            {
+                var_indices2[var_index++] = index;
+            }
 
-            // if (var_count)
-            // {
-            //     *var_indices[var_index++] = index;
-            // }
 
             current_token[j++] = '\0';
             strncpy(tokens[index++], current_token, j);
@@ -218,6 +230,7 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices)
     if(in_quotes)
     {
         *error = PARSE_ERROR;
+        tokens_free(tokens, index);
         return NULL;
     }
 
@@ -226,17 +239,40 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices)
         if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
         {   
             *error = MEMORY_ERROR;
+            tokens_free(tokens, index);
             return NULL;
         }
-        // if (var_count)
-        // {
-        //     *var_indices[var_index] = index;
-        // }
+        if (var_count)
+        {
+            var_indices2[var_index++] = index;
+        }
+
         current_token[j++] = '\0';
         strncpy(tokens[index], current_token, j);
     }
 
+    *var_indices = var_indices2;
+    *var_indices_length = var_index;
     return tokens;
 
 }
+void tokens_free(char** tokens, int length)
+{
+    for (int i = 0; i < length; i++)
+    {
+        free(tokens[i]);
+    }
+    free(tokens);
+}
+int test(int** arr)
+{
+    int* arr2 = (int*) malloc(50 * sizeof(int));
 
+    for (int i = 0; i < 50; i++)
+        arr2[i] = i;
+    
+    *arr = arr2;
+    
+    return 1;
+
+}

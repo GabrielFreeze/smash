@@ -5,12 +5,12 @@
 #include "includes/methods.c"
 #include "includes/config.h"
 
+
 //__________________________________Variables__________________________________
 
 
 //______________________________________TODO___________________________________
 /*
-  Function that frees tokens if tokens_get fails during process.  
 
 
 
@@ -22,7 +22,8 @@ int main(int argc, char** argv)
     char* input;
     int token_num, error;
     char** tokens;
-    int* variable_indices;
+    int* var_indices;
+    int var_indices_length;
 
 
     while (((input = linenoise(prompt)) != NULL) && strcmp(input, exit_keyword))
@@ -31,24 +32,19 @@ int main(int argc, char** argv)
         {
 
 
-            if ((tokens = tokens_get(input, &token_num, &error, &variable_indices)) == NULL)
+            if ((tokens = tokens_get(input, &token_num, &error, &var_indices, &var_indices_length)) == NULL)
             {
                 handle_error(error);
                 continue;     
                 
             }
 
-
-
             printf("Number of tokens: %d\n",token_num);
-            for(int i = 0; i < token_num; i++)
-            {
-                printf("%s\n",tokens[i]);
-                // printf("%d\n",variable_indices[i]);
-                free(tokens[i]);
 
-            }
+            for(int i = 0; i < var_indices_length; i++)
+                printf("%d\n",var_indices[i]);
 
+            tokens_free(tokens, token_num);
 
         }
         free(input);
