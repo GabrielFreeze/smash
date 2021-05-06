@@ -25,12 +25,13 @@ int main(int argc, char** argv)
     int* var_indices;
     int var_indices_length;
 
+    
 
     while (((input = linenoise(prompt)) != NULL) && strcmp(input, exit_keyword))
     {
         if (input[0] != '\0' && input[0] != '/')
         {
-
+            
 
             if ((tokens = tokens_get(input, &token_num, &error, &var_indices, &var_indices_length)) == NULL)
             {
@@ -43,7 +44,8 @@ int main(int argc, char** argv)
 
             for(int i = 0; i < var_indices_length; i++)
                 printf("%d\n",var_indices[i]);
-
+                
+            free(var_indices);
             tokens_free(tokens, token_num);
 
         }

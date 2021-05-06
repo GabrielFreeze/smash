@@ -3,6 +3,7 @@
 #define KEY_SIZE 50
 #define VALUE_SIZE 50
 #define VARIABLE_LENGTH 100
+#define ENV_VAR_NUM_STARTUP 9
 
 #define MEMORY_ERROR_MSG "A problem occured while dynamically allocating memory\n"
 #define BUFFER_ERROR_MSG "Did a token exceed its maximum buffer size of %d characters?\n"
@@ -28,10 +29,17 @@ char* prompt = {"init> "};
 char* exit_keyword = {"exit"};
 char* metacharacters = {" |;<>\t"};
 char* quotes = {"\"\'"};
+int var_tail = 0;
 
+
+// char* env_key_startup[KEY_SIZE] = {"PATH", "PROMPT", "CWD", "USER", "HOME", "SHELL", "TERMINAL", "EXITCODE"};
+// char* env_val_startup[VALUE_SIZE] = {"","","","","","","","","",};
 typedef struct variable
 {
     char key[KEY_SIZE];
     char value[VALUE_SIZE];
     bool is_valid;
+    bool env;
 } variables[VARIABLE_LENGTH];
+
+variables env_variables;

@@ -115,7 +115,7 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices, int* 
     int index = 0;
     int j = 0;
     int var_count = 0;
-    int var_index;
+    int var_index = 0;
     char** tokens;
     int* var_indices2;
     char current_token[TOKEN_SIZE];
@@ -264,15 +264,55 @@ void tokens_free(char** tokens, int length)
     }
     free(tokens);
 }
-int test(int** arr)
+int init_variables(void)
 {
-    int* arr2 = (int*) malloc(50 * sizeof(int));
+    strcpy(env_variables[0].key, "PATH\0");
+    strcpy(env_variables[0].value, "/usr/bin:/bin:/usr/local/bin\0");
+    env_variables[0].is_valid = true;
+    env_variables[0].env = true;
+    //______________________________________________________________________
+    strcpy(env_variables[1].key, "PROMPT\0");
+    strcpy(env_variables[1].value, "init");
+    env_variables[1].is_valid = true;
+    env_variables[1].env = true;
+    //______________________________________________________________________
+    strcpy(env_variables[2].key, "CWD\0");
 
-    for (int i = 0; i < 50; i++)
-        arr2[i] = i;
-    
-    *arr = arr2;
-    
-    return 1;
+    char cwd[VALUE_SIZE];
+
+    if (getcwd(cwd, sizeof(cwd)) == NULL)
+        return EXIT_FAILURE;
+
+    strcpy(env_variables[2].value, cwd);
+    env_variables[2].is_valid = true;
+    env_variables[2].env = true;
+    //______________________________________________________________________
+    strcpy(env_variables[3].key, "USER\0");
+    strcpy(env_variables[3].value, "guest");
+    env_variables[3].is_valid = true;
+    env_variables[3].env = true;
+    //______________________________________________________________________
+    strcpy(env_variables[4].key, "USER\0");
+
+    char* user;
+
+    if ((user  = getenv("USER")) == NULL)
+        return EXIT_FAILURE;
+
+
+    strcpy(env_variables[4].value, user);
+    env_variables[4].is_valid = true;
+    env_variables[4].env = true;
+    //______________________________________________________________________
+
+    strcpy(env_variables[5].key, "HOME\0");
+    char* home;
+
+    if ((home  = getenv("HOME")) == NULL)
+        return EXIT_FAILURE;
+
+    strcpy(env_variables[5].value, home);
+    env_variables[5].is_valid = true;
+    env_variables[5].env = true;
 
 }
