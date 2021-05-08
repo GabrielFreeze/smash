@@ -108,8 +108,11 @@ void handle_error(int error)
         
     if (error == VARIABLE_ASSIGNMENT_ERROR)
         fprintf(stderr, VARIABLE_ASSIGNMENT_MSG);
+
+    if (error == VARIABLE_EXPANSION_ERROR)
+        fprintf(stderr, VARIABLE_EXPANSION_MSG);
 }
-char** tokens_get(char* input, int* length, int* error, int** var_indices, int* var_indices_length)
+char** tokens_get(char* input, int* length, int* error, int** var_indices, int* var_indices_len)
 {  
     
     int index = 0;
@@ -252,7 +255,7 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices, int* 
     }
 
     *var_indices = var_indices2;
-    *var_indices_length = var_index;
+    *var_indices_len = var_index;
     return tokens;
 
 }
@@ -264,77 +267,145 @@ void tokens_free(char** tokens, int length)
     }
     free(tokens);
 }
-int init_variables(void)
+int init_vars(void)
 {
-    strcpy(env_variables[0].key, "PATH\0");
+    vars_len = INIT_VARS_LEN;
+    for (int i = 0; i < vars_len; i++)
+    {
+        variables[i].is_valid = true;
+        variables[i].env = true;
+    } 
+
+
+    strcpy(variables[0].key, "PATH\0");
 
     char* path;
 
     if ((path = getenv("PATH")) == NULL)
         return EXIT_FAILURE;
 
-    strcpy(env_variables[0].value, "path");
-    env_variables[0].is_valid = true;
-    env_variables[0].env = true;
+    strcpy(variables[0].value, path);
+
     //______________________________________________________________________
-    strcpy(env_variables[1].key, "PROMPT\0");
-    strcpy(env_variables[1].value, "init");
-    env_variables[1].is_valid = true;
-    env_variables[1].env = true;
+
+    strcpy(variables[1].key, "PROMPT\0");
+    strcpy(variables[1].value, "init");
     //______________________________________________________________________
-    strcpy(env_variables[2].key, "CWD\0");
+
+    strcpy(variables[2].key, "CWD\0");
 
     char cwd[VALUE_SIZE];
 
     if (getcwd(cwd, sizeof(cwd)) == NULL)
         return EXIT_FAILURE;
 
-    strcpy(env_variables[2].value, cwd);
-    env_variables[2].is_valid = true;
-    env_variables[2].env = true;
+    strcpy(variables[2].value, cwd);
+
     //______________________________________________________________________
-    strcpy(env_variables[3].key, "USER\0");
-    strcpy(env_variables[3].value, "guest");
-    env_variables[3].is_valid = true;
-    env_variables[3].env = true;
+    strcpy(variables[3].key, "HOME\0");
+
+    char* home;
+
+    if ((home  = getenv("HOME")) == NULL)
+        return EXIT_FAILURE;
+
+    strcpy(variables[3].value, home);
     //______________________________________________________________________
-    strcpy(env_variables[4].key, "USER\0");
+
+    strcpy(variables[4].key, "USER\0");
 
     char* user;
 
     if ((user  = getenv("USER")) == NULL)
         return EXIT_FAILURE;
 
-    strcpy(env_variables[4].value, user);
-    env_variables[4].is_valid = true;
-    env_variables[4].env = true;
+    strcpy(variables[4].value, user);
+
     //______________________________________________________________________
 
-
-    strcpy(env_variables[6].key, "SHELL\0");
+        
+    strcpy(variables[6].key, "SHELL\0");
     char shell[VALUE_SIZE];
 
     if(readlink("/proc/self/exe", shell, VALUE_SIZE) == -1)
         return EXIT_FAILURE;
     
-    strcpy(env_variables[6].value, shell);
-    env_variables[6].is_valid = true;
-    env_variables[6].env = true;
+    strcpy(variables[6].value, shell);
 
     //______________________________________________________________________
 
-
-    strcpy(env_variables[7].key, "TERMINAL\0");
+    strcpy(variables[7].key, "TERMINAL\0");
     char* term;
 
     if ((term = ttyname(0)) == NULL)
         return EXIT_FAILURE;
 
-    strcpy(env_variables[7].value, term);
-    env_variables[7].is_valid = true;
-    env_variables[7].env = true;
+    strcpy(variables[7].value, term);
 
     //______________________________________________________________________
 
+    strcpy(variables[8].key, "EXITCODE\0");
+    strcpy(variables[8].value,"NULL\0");
 
+    return 0;
+
+
+}
+int expand_vars(char* tokens[TOKEN_SIZE], int* var_indices, int var_indices_len)
+{
+    int equal;
+    char token[TOKEN_SIZE];
+    char append[TOKEN_SIZE];
+
+    byte end = 0;
+    byte offset = 1;
+
+    for (byte i = 0; i < var_indices_len; i++)
+    {
+
+        offset = 1;
+
+        strcpy(token, tokens[var_indices[i]]);
+        end = strlen(token);
+
+        if (token[1] == '{')
+        {
+            for (byte l = 2; l < strlen(token); l++)
+            {
+                if (token[l] == '}')
+                {
+                    end = l;
+                    break;
+                }
+            }
+            if (!end || end == 2)
+                return VARIABLE_ASSIGNMENT_ERROR;
+            
+            token[end] = '\0';
+            offset = 2;
+        }
+            
+        for (byte j = 0; j < vars_len; j++)
+        {
+            if ((equal = strcmp(token + offset, variables[j].key)) == 0)
+            {
+                strcpy(append, tokens[var_indices[i]] + end + offset-1);
+
+                strcpy(tokens[var_indices[i]], variables[j].value);
+                byte append_len = strlen(append);
+                byte value_len = strlen(variables[j].value);
+
+                for (byte k = 0; k < append_len+1; k++)
+                    tokens[var_indices[i]][value_len+k] = append[k];
+
+                break;
+            }
+
+        }
+        if (equal)
+            return VARIABLE_EXPANSION_ERROR;
+    }
+
+
+    return 0;
 }

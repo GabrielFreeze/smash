@@ -1,6 +1,7 @@
 //_______________________________Includes______________________________________
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "includes/linenoise-master/linenoise.c"
 #include "includes/methods.c"
 #include "includes/config.h"
@@ -23,18 +24,22 @@ int main(int argc, char** argv)
     int token_num, error;
     char** tokens;
     int* var_indices;
-    int var_indices_length;
+    int var_indices_len;
 
-    
+    if (error = init_vars())
+    {
+        handle_error(error);
+        exit(0);
+    }
+
 
     while (((input = linenoise(prompt)) != NULL) && strcmp(input, exit_keyword))
     {
         if (input[0] != '\0' && input[0] != '/')
         {
 
-            
 
-            if ((tokens = tokens_get(input, &token_num, &error, &var_indices, &var_indices_length)) == NULL)
+            if ((tokens = tokens_get(input, &token_num, &error, &var_indices, &var_indices_len)) == NULL)
             {
                 handle_error(error);
                 continue;     
@@ -43,9 +48,15 @@ int main(int argc, char** argv)
 
             printf("Number of tokens: %d\n",token_num);
 
-            for(int i = 0; i < var_indices_length; i++)
-                printf("%d\n",var_indices[i]);
-                
+            if (error = expand_vars(tokens, var_indices, var_indices_len))
+            {
+                handle_error(error);
+                continue;
+            }
+
+            for (byte i = 0; i < token_num; i++)
+                printf("%s\n",tokens[i]);
+            
             free(var_indices);
             tokens_free(tokens, token_num);
 
