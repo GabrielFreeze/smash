@@ -31,6 +31,7 @@ int main(int argc, char** argv)
     {
         if (input[0] != '\0' && input[0] != '/')
         {
+
             
 
             if ((tokens = tokens_get(input, &token_num, &error, &var_indices, &var_indices_length)) == NULL)

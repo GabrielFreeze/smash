@@ -267,7 +267,13 @@ void tokens_free(char** tokens, int length)
 int init_variables(void)
 {
     strcpy(env_variables[0].key, "PATH\0");
-    strcpy(env_variables[0].value, "/usr/bin:/bin:/usr/local/bin\0");
+
+    char* path;
+
+    if ((path = getenv("PATH")) == NULL)
+        return EXIT_FAILURE;
+
+    strcpy(env_variables[0].value, "path");
     env_variables[0].is_valid = true;
     env_variables[0].env = true;
     //______________________________________________________________________
@@ -299,20 +305,36 @@ int init_variables(void)
     if ((user  = getenv("USER")) == NULL)
         return EXIT_FAILURE;
 
-
     strcpy(env_variables[4].value, user);
     env_variables[4].is_valid = true;
     env_variables[4].env = true;
     //______________________________________________________________________
 
-    strcpy(env_variables[5].key, "HOME\0");
-    char* home;
 
-    if ((home  = getenv("HOME")) == NULL)
+    strcpy(env_variables[6].key, "SHELL\0");
+    char shell[VALUE_SIZE];
+
+    if(readlink("/proc/self/exe", shell, VALUE_SIZE) == -1)
+        return EXIT_FAILURE;
+    
+    strcpy(env_variables[6].value, shell);
+    env_variables[6].is_valid = true;
+    env_variables[6].env = true;
+
+    //______________________________________________________________________
+
+
+    strcpy(env_variables[7].key, "TERMINAL\0");
+    char* term;
+
+    if ((term = ttyname(0)) == NULL)
         return EXIT_FAILURE;
 
-    strcpy(env_variables[5].value, home);
-    env_variables[5].is_valid = true;
-    env_variables[5].env = true;
+    strcpy(env_variables[7].value, term);
+    env_variables[7].is_valid = true;
+    env_variables[7].env = true;
+
+    //______________________________________________________________________
+
 
 }
