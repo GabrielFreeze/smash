@@ -3,15 +3,17 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "config.h"
 
 
 
 int tokens_len(char* string);
 int char_type(char* string, int j);
-char** tokens_get(char* input, int* length, int* error, int** var_indices, int* var_indices_len);
+char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_indices, int* var_indices_len);
 bool is_deref(char* string, int upper);
 void handle_error(int error);
 void tokens_free(char** tokens, int length);
 bool is_var(char* token);
 int init_vars(void);
-int expand_vars(char** tokens, int* var_indices, int var_indices_len);
+bool vars_valid(char* token, byte j);
+int expand_vars(char** tokens, tokenchar_pair* var_indices, int var_indices_len);

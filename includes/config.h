@@ -45,4 +45,12 @@ typedef struct var
 
 typedef unsigned char byte;
 
+
+typedef struct tokenchar_pair_struct
+{
+    byte token_index;
+    byte char_index;
+} tokenchar_pair;
+
+
 vars variables;

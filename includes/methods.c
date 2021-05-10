@@ -112,15 +112,14 @@ void handle_error(int error)
     if (error == VARIABLE_EXPANSION_ERROR)
         fprintf(stderr, VARIABLE_EXPANSION_MSG);
 }
-char** tokens_get(char* input, int* length, int* error, int** var_indices, int* var_indices_len)
+char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_indices, int* var_indices_len)
 {  
     
     int index = 0;
     int j = 0;
-    int var_count = 0;
     int var_index = 0;
     char** tokens;
-    int* var_indices2;
+    tokenchar_pair* var_indices2;
     char current_token[TOKEN_SIZE];
     bool in_quotes = false;
     int type, prev_type = NONE;
@@ -132,7 +131,7 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices, int* 
     }
 
     if (((tokens = (char**) malloc(*length * sizeof(char*))) == NULL) ||
-    ((var_indices2 = (int*) malloc(*length * sizeof(int))) == NULL))
+    ((var_indices2 = (tokenchar_pair*) malloc(*length * sizeof(tokenchar_pair))) == NULL))
     {
         *error = MEMORY_ERROR;
         return NULL;
@@ -149,26 +148,17 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices, int* 
             tokens_free(tokens, index);
             return NULL;
         }
-        
-        if (type == VARIABLE && ++var_count > 1)
-        {
-            *error = VARIABLE_ASSIGNMENT_ERROR;
-            tokens_free(tokens, index);
-            return NULL;
-        }
-
-        if (type == VARIABLE && j > 0)
+        if (prev_type == VARIABLE && type != NORMAL)
         {
             *error = VARIABLE_ASSIGNMENT_ERROR;
             tokens_free(tokens, index);
             return NULL;
         }
         
-        if (in_quotes && type == VARIABLE)
+        if (type == VARIABLE)
         {
-            *error = VARIABLE_ASSIGNMENT_ERROR;
-            tokens_free(tokens, index);
-            return NULL;
+            var_indices2[var_index].token_index = index;
+            var_indices2[var_index++].char_index = j;
         }
 
         if (type == QUOTE)
@@ -208,17 +198,10 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices, int* 
                     return NULL;
                 }
             
-            if (var_count)
-            {
-                var_indices2[var_index++] = index;
-            }
-
 
             current_token[j++] = '\0';
             strncpy(tokens[index++], current_token, j);
 
-
-            var_count = 0;
             j = 0;
         }
         else if ((type == META) || (type == ESCAPE))
@@ -244,10 +227,6 @@ char** tokens_get(char* input, int* length, int* error, int** var_indices, int* 
             *error = MEMORY_ERROR;
             tokens_free(tokens, index);
             return NULL;
-        }
-        if (var_count)
-        {
-            var_indices2[var_index++] = index;
         }
 
         current_token[j++] = '\0';
@@ -351,7 +330,17 @@ int init_vars(void)
 
 
 }
-int expand_vars(char* tokens[TOKEN_SIZE], int* var_indices, int var_indices_len)
+bool vars_valid(char* token, byte j)
+{
+    if (    (token[j] >= '0'  && token[j] <= '9') || 
+            (token[j] >= 'a'  && token[j] <= 'z') || 
+            (token[j] >= 'A'  && token[j] <= 'Z') || 
+            (token[j] == '_'))
+        return j;
+
+    return false;        
+}
+int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_indices_len)
 {
     int equal;
     char token[TOKEN_SIZE];
@@ -359,16 +348,23 @@ int expand_vars(char* tokens[TOKEN_SIZE], int* var_indices, int var_indices_len)
 
     byte end = 0;
     byte offset = 1;
+    byte token_index;
+    byte char_index; 
+    byte value_len = 0;
+    byte append_len = 0;
+    byte original_len = 0;   
 
     for (byte i = 0; i < var_indices_len; i++)
     {
 
         offset = 1;
+        token_index = var_indices[i].token_index;
+        char_index = var_indices[i].char_index;
 
-        strcpy(token, tokens[var_indices[i]]);
+        strcpy(token, tokens[token_index] + char_index); //Ignoring all before the $
         end = strlen(token);
 
-        if (token[1] == '{')
+        if (token[1] == '{') //Using <Any Chars> ${...} <Any Chars> notation
         {
             for (byte l = 2; l < strlen(token); l++)
             {
@@ -378,25 +374,39 @@ int expand_vars(char* tokens[TOKEN_SIZE], int* var_indices, int var_indices_len)
                     break;
                 }
             }
-            if (!end || end == 2)
+            if (end == 2)
                 return VARIABLE_ASSIGNMENT_ERROR;
             
             token[end] = '\0';
             offset = 2;
+        }
+        else //Using  <Any Chars> $... <Illegeal Chars> notation
+        {
+            //Stop until you encounter an illegal character,
+            for (byte j = 1; j < end; j++)
+            {
+                if (!vars_valid(token,j))
+                {
+                    end =  j;
+                    token[end] = '\0';
+                    break;
+                }      
+            }
+                
         }
             
         for (byte j = 0; j < vars_len; j++)
         {
             if ((equal = strcmp(token + offset, variables[j].key)) == 0)
             {
-                strcpy(append, tokens[var_indices[i]] + end + offset-1);
+                strcpy(append, tokens[token_index] + char_index + end + offset-1);
 
-                strcpy(tokens[var_indices[i]], variables[j].value);
-                byte append_len = strlen(append);
-                byte value_len = strlen(variables[j].value);
+                strcpy(tokens[token_index] + char_index, variables[j].value);
+                append_len = strlen(append);
+                value_len = strlen(variables[j].value);
 
                 for (byte k = 0; k < append_len+1; k++)
-                    tokens[var_indices[i]][value_len+k] = append[k];
+                    tokens[token_index][char_index+value_len+k] = append[k];
 
                 break;
             }
@@ -404,6 +414,20 @@ int expand_vars(char* tokens[TOKEN_SIZE], int* var_indices, int var_indices_len)
         }
         if (equal)
             return VARIABLE_EXPANSION_ERROR;
+
+        //For the remaining variables within the token, char_index - var_name(including $) + value_len
+        // Since the current token will be edited.
+
+        for (byte j = i+1; j < vars_len; j++)
+        {
+            if (var_indices[j].token_index != token_index)
+                break;
+            
+            var_indices[j].char_index += -(strlen(token) + offset-1) + value_len;
+        }
+
+
+
     }
 
 
