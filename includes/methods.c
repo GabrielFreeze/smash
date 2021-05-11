@@ -1,4 +1,4 @@
-#include "methods.h"
+#include "headers.h"
 #include "linenoise-master/linenoise.h"
 #include "config.h"
 int tokens_len(char* string)
@@ -248,83 +248,51 @@ void tokens_free(char** tokens, int length)
 }
 int init_vars(void)
 {
-    vars_len = INIT_VARS_LEN;
-    for (int i = 0; i < vars_len; i++)
-    {
-        variables[i].is_valid = true;
-        variables[i].env = true;
-    } 
+    byte error;
 
-
-    strcpy(variables[0].key, "PATH\0");
-
-    char* path;
-
-    if ((path = getenv("PATH")) == NULL)
-        return EXIT_FAILURE;
-
-    strcpy(variables[0].value, path);
+    if (error = node_insert("PATH", "/usr/bin:/bin:/usr/local/bin" ,true))
+        return error;
+    //______________________________________________________________________
+    
+    if (error = node_insert("PROMPT", "init" ,true))
+        return error;
 
     //______________________________________________________________________
-
-    strcpy(variables[1].key, "PROMPT\0");
-    strcpy(variables[1].value, "init");
-    //______________________________________________________________________
-
-    strcpy(variables[2].key, "CWD\0");
 
     char cwd[VALUE_SIZE];
 
-    if (getcwd(cwd, sizeof(cwd)) == NULL)
-        return EXIT_FAILURE;
-
-    strcpy(variables[2].value, cwd);
+    if (error = node_insert("CWD", getcwd(cwd, sizeof(cwd)) ,true))
+        return error;
 
     //______________________________________________________________________
-    strcpy(variables[3].key, "HOME\0");
-
-    char* home;
-
-    if ((home  = getenv("HOME")) == NULL)
-        return EXIT_FAILURE;
-
-    strcpy(variables[3].value, home);
+    
+    if (error = node_insert("HOME", getenv("HOME") ,true))
+        return error;
     //______________________________________________________________________
 
-    strcpy(variables[4].key, "USER\0");
-
-    char* user;
-
-    if ((user  = getenv("USER")) == NULL)
-        return EXIT_FAILURE;
-
-    strcpy(variables[4].value, user);
+    if (error = node_insert("USER", getenv("USER") ,true))
+        return error;
 
     //______________________________________________________________________
 
-        
-    strcpy(variables[6].key, "SHELL\0");
     char shell[VALUE_SIZE];
 
     if(readlink("/proc/self/exe", shell, VALUE_SIZE) == -1)
-        return EXIT_FAILURE;
+        return NODE_ASSIGNMENT_ERROR;
     
-    strcpy(variables[6].value, shell);
+    if (error = node_insert("SHELL", shell ,true))
+        return error;
+    
+    //______________________________________________________________________
+
+    if (error = node_insert("TERMINAL", ttyname(0) ,true))
+        return error;
 
     //______________________________________________________________________
 
-    strcpy(variables[7].key, "TERMINAL\0");
-    char* term;
+    if (error = node_insert("EXITCODE", "NONE" ,true))
+        return error;
 
-    if ((term = ttyname(0)) == NULL)
-        return EXIT_FAILURE;
-
-    strcpy(variables[7].value, term);
-
-    //______________________________________________________________________
-
-    strcpy(variables[8].key, "EXITCODE\0");
-    strcpy(variables[8].value,"NULL\0");
 
     return 0;
 
@@ -395,15 +363,16 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
                 
         }
             
-        for (byte j = 0; j < vars_len; j++)
+
+        for (node* current_node = head; current_node != NULL; current_node = current_node->next)
         {
-            if ((equal = strcmp(token + offset, variables[j].key)) == 0)
+            if ((equal = strcmp(token + offset, current_node->key)) == 0)
             {
                 strcpy(append, tokens[token_index] + char_index + end + offset-1);
 
-                strcpy(tokens[token_index] + char_index, variables[j].value);
+                strcpy(tokens[token_index] + char_index, current_node->value);
                 append_len = strlen(append);
-                value_len = strlen(variables[j].value);
+                value_len = strlen(current_node->value);
 
                 for (byte k = 0; k < append_len+1; k++)
                     tokens[token_index][char_index+value_len+k] = append[k];
@@ -412,11 +381,12 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
             }
 
         }
+
         if (equal)
             return VARIABLE_EXPANSION_ERROR;
 
-        //For the remaining variables within the token, char_index - var_name(including $) + value_len
-        // Since the current token will be edited.
+        //For the remaining variables within the token, add to char_index: - var_name(including $) + value_len
+        // Since the current token will be edited and all pointers to variable characters must be shifted.
 
         for (byte j = i+1; j < vars_len; j++)
         {
@@ -426,10 +396,76 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
             var_indices[j].char_index += -(strlen(token) + offset-1) + value_len;
         }
 
-
-
     }
 
 
     return 0;
 }
+byte node_insert(char* key, char* value, bool env)
+{
+    node* new_node;
+    if ((new_node = (node*) malloc(sizeof(node))) == NULL)
+        return MEMORY_ERROR;
+
+    if (key == NULL || value == NULL)
+        return NODE_ASSIGNMENT_ERROR;
+
+
+
+    strcpy(new_node->key, key);
+    strcpy(new_node->value, value);
+    new_node->env = env;
+
+
+    new_node->next = head;
+    head = new_node;  
+    vars_len++;
+    return 0;
+
+}
+node* node_search(char* key, node** prev_node)
+{
+    node* current_node;
+    *prev_node = NULL;
+    
+
+    if ((current_node = head) == NULL)
+        return NULL;
+    
+    while (strcmp(current_node->key,key))
+        {
+            if (current_node == NULL)
+                return NULL;
+
+            *prev_node = current_node;
+            current_node = current_node->next;
+        }
+    return current_node;
+}
+byte node_delete(char* key)
+{
+    node* current_node;
+    node* prev_node;
+
+    if ((current_node = node_search(key, &prev_node)) == NULL)
+        return NODE_NOT_FOUND_ERROR;
+
+    //If previous node is Null, then the node to delete is the first one
+
+    if (prev_node == NULL)
+        head =  current_node->next;
+    else
+        prev_node->next = current_node->next;
+
+
+    vars_len--;
+    return 0;
+
+}
+void nodes_print()
+{
+    for (node* current_node = head; current_node != NULL; current_node = current_node->next)
+        printf("Key:[%s]\nValue:[%s]\n",current_node->key, current_node->value);  
+}
+
+

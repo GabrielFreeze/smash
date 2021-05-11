@@ -5,6 +5,7 @@
 #include "includes/linenoise-master/linenoise.c"
 #include "includes/methods.c"
 #include "includes/config.h"
+#include "includes/linkedlist.c"
 
 
 //__________________________________Variables__________________________________
@@ -25,6 +26,7 @@ int main(int argc, char** argv)
     char** tokens = NULL;
     tokenchar_pair* var_indices = NULL;
     int var_indices_len;
+
 
     if (error = init_vars())
     {
@@ -47,15 +49,6 @@ int main(int argc, char** argv)
             }
 
             printf("Number of tokens: %d\n",token_num);
-
-
-            // for (byte i = 0; i < var_indices_len; i++)
-            // {
-            //     printf("%d\n",var_indices[i].token_index);
-            //     printf("%d\n",var_indices[i].char_index);
-            // }
-                
-
 
             if (error = expand_vars(tokens, var_indices, var_indices_len))
             {

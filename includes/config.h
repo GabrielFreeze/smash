@@ -24,13 +24,32 @@
 #define PARSE_ERROR 7
 #define VARIABLE_ASSIGNMENT_ERROR 8
 #define VARIABLE_EXPANSION_ERROR 9
+#define NODE_NOT_FOUND_ERROR 10
+#define NODE_ASSIGNMENT_ERROR 11
 
+typedef struct node_ {
+    char key[KEY_SIZE];
+    char value[VALUE_SIZE];
+    bool env;
+    struct node_ *next;
+} node;
+
+
+typedef unsigned char byte;
+typedef unsigned short two_bytes;
+
+
+typedef struct tokenchar_pair_struct
+{
+    byte token_index;
+    byte char_index;
+} tokenchar_pair;
 
 char* prompt = {"init> "};
 char* exit_keyword = {"exit"};
 char* metacharacters = {" |;<>\t"};
 char* quotes = {"\"\'"};
-int vars_len = 0;
+two_bytes vars_len = 0;
 
 
 // char* env_key_startup[KEY_SIZE] = {"PATH", "PROMPT", "CWD", "USER", "HOME", "SHELL", "TERMINAL", "EXITCODE"};
@@ -43,14 +62,7 @@ typedef struct var
     bool env;
 } vars[VARIABLE_LENGTH];
 
-typedef unsigned char byte;
-
-
-typedef struct tokenchar_pair_struct
-{
-    byte token_index;
-    byte char_index;
-} tokenchar_pair;
 
 
 vars variables;
+node* head;
