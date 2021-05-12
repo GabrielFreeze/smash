@@ -18,4 +18,5 @@ bool vars_valid(char* token, byte j);
 int expand_vars(char** tokens, tokenchar_pair* var_indices, int var_indices_len);
 byte node_insert(char* key, char* value, bool env);
 byte node_delete(char* key);
-node* node_search(char* key, node** prev_node);
+node* node_search(char* key);
+byte assign_vars(char** tokens, byte length);

@@ -14,8 +14,8 @@ int tokens_len(char* string)
 
         if (type == QUOTE)
         {
-            if((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
-                ++count;
+            // if((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
+            //     ++count;
 
             in_quotes = in_quotes? false:true;
         }
@@ -30,7 +30,7 @@ int tokens_len(char* string)
             prev_type = type;
     }
 
-    return (type == NORMAL)? count+1 : count;
+    return (type == NORMAL || type == QUOTE)? count+1 : count;
     
 }
 int char_type(char* string, int j)
@@ -106,8 +106,8 @@ void handle_error(int error)
     if (error == PARSE_ERROR)
         fprintf(stderr, PARSE_ERROR_MSG);
         
-    if (error == VARIABLE_ASSIGNMENT_ERROR)
-        fprintf(stderr, VARIABLE_ASSIGNMENT_MSG);
+    if (error == VARIABLE_DECLARATION_ERROR)
+        fprintf(stderr, VARIABLE_DECLARATION_MSG);
 
     if (error == VARIABLE_EXPANSION_ERROR)
         fprintf(stderr, VARIABLE_EXPANSION_MSG);
@@ -150,7 +150,7 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
         }
         if (prev_type == VARIABLE && type != NORMAL)
         {
-            *error = VARIABLE_ASSIGNMENT_ERROR;
+            *error = VARIABLE_DECLARATION_ERROR;
             tokens_free(tokens, index);
             return NULL;
         }
@@ -163,22 +163,22 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
 
         if (type == QUOTE)
         {
-            if ((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
-            {
+            // if ((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
+            // {
 
-                if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
-                {   
-                    *error = MEMORY_ERROR;
-                    tokens_free(tokens, index);
-                    return NULL;
-                }
+            //     if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
+            //     {   
+            //         *error = MEMORY_ERROR;
+            //         tokens_free(tokens, index);
+            //         return NULL;
+            //     }
 
-                current_token[j++] = '\0';
-                strncpy(tokens[index++], current_token, j);
+            //     current_token[j++] = '\0';
+            //     strncpy(tokens[index++], current_token, j);
 
 
-                j = 0;  
-            }
+            //     j = 0;  
+            // }
                 
             in_quotes = in_quotes? false:true;
             goto end;
@@ -343,7 +343,7 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
                 }
             }
             if (end == 2)
-                return VARIABLE_ASSIGNMENT_ERROR;
+                return VARIABLE_DECLARATION_ERROR;
             
             token[end] = '\0';
             offset = 2;
@@ -411,22 +411,23 @@ byte node_insert(char* key, char* value, bool env)
         return NODE_ASSIGNMENT_ERROR;
 
 
-
     strcpy(new_node->key, key);
     strcpy(new_node->value, value);
     new_node->env = env;
 
-
     new_node->next = head;
-    head = new_node;  
+    head = new_node;
+    head->prev= new_node;
+
     vars_len++;
+    
+
     return 0;
 
 }
-node* node_search(char* key, node** prev_node)
+node* node_search(char* key)
 {
     node* current_node;
-    *prev_node = NULL;
     
 
     if ((current_node = head) == NULL)
@@ -437,7 +438,6 @@ node* node_search(char* key, node** prev_node)
             if (current_node == NULL)
                 return NULL;
 
-            *prev_node = current_node;
             current_node = current_node->next;
         }
     return current_node;
@@ -447,15 +447,15 @@ byte node_delete(char* key)
     node* current_node;
     node* prev_node;
 
-    if ((current_node = node_search(key, &prev_node)) == NULL)
+    if ((current_node = node_search(key)) == NULL)
         return NODE_NOT_FOUND_ERROR;
 
     //If previous node is Null, then the node to delete is the first one
 
-    if (prev_node == NULL)
+    if (current_node->prev == NULL)
         head =  current_node->next;
     else
-        prev_node->next = current_node->next;
+        current_node->prev->next = current_node->next;
 
 
     vars_len--;
@@ -467,5 +467,58 @@ void nodes_print()
     for (node* current_node = head; current_node != NULL; current_node = current_node->next)
         printf("Key:[%s]\nValue:[%s]\n",current_node->key, current_node->value);  
 }
+byte assign_vars(char** tokens, byte length)
+{
 
 
+    for (byte i = 0; i < length; i++)
+    {   
+        node* current_node;
+        char current_token[TOKEN_SIZE];
+        char key_value[2][TOKEN_SIZE];
+        byte j = 0;
+        byte current_token_len = strlen(tokens[i]);
+        byte error;
+
+        strcpy(current_token,tokens[i]);
+
+        for (char* string = strtok(current_token, "="); (string != NULL) && (strlen(string) != current_token_len); string = strtok(NULL, "="))
+        {
+            if (j == 2)
+                return VARIABLE_ASSIGNMENT_ERROR;
+            strcpy(key_value[j++],string);
+        }
+
+        if (j == 0)
+            break;
+
+        if (j != 2)
+            return VARIABLE_ASSIGNMENT_ERROR;
+        
+        //Assign current_node to node with key = key_value[0] if it exists,
+        // otherwise,  create it with the values;
+        if ((current_node = node_search(key_value[0])) == NULL)
+        {
+            if (error = node_insert(key_value[0], key_value[1], false))  
+                return error;
+        }
+        else
+        {
+            strcpy(current_node->key, key_value[0]);
+            strcpy(current_node->value, key_value[1]);
+        }
+    
+    
+    }
+    return 0;
+
+    //Find token with =.
+    //Split LHS(key) and RHS(value)
+    //Does key already exist?
+    //      N = Create it
+    //
+    //Assign value to key.      
+    //bool env is false by default since this is a shell variable.
+
+
+}

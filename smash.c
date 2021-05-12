@@ -56,6 +56,14 @@ int main(int argc, char** argv)
                 continue;
             }
 
+            if(error = assign_vars(tokens, token_num))
+            {
+                printf("error\n");
+            }
+
+
+
+
             for (byte i = 0; i < token_num; i++)
                 printf("%s\n",tokens[i]);
             

@@ -8,7 +8,7 @@
 #define MEMORY_ERROR_MSG "A problem occured while dynamically allocating memory\n"
 #define BUFFER_ERROR_MSG "Did a token exceed its maximum buffer size of %d characters?\n"
 #define PARSE_ERROR_MSG "Error while parsing.\n"
-#define VARIABLE_ASSIGNMENT_MSG "Do you have a variable expansion character in quotes or referencing illegal characters?\n"
+#define VARIABLE_DECLARATION_MSG "Do you have a variable expansion character in quotes or referencing illegal characters?\n"
 #define VARIABLE_EXPANSION_MSG "Variable does not exsist.\n"
 
 
@@ -18,20 +18,23 @@
 #define ESCAPE 2
 #define VARIABLE 3
 #define QUOTE 4
+#define EQUAL 5
 
-#define MEMORY_ERROR 5
-#define BUFFER_OVERFLOW_ERROR 6
-#define PARSE_ERROR 7
-#define VARIABLE_ASSIGNMENT_ERROR 8
-#define VARIABLE_EXPANSION_ERROR 9
-#define NODE_NOT_FOUND_ERROR 10
-#define NODE_ASSIGNMENT_ERROR 11
+#define MEMORY_ERROR 51
+#define BUFFER_OVERFLOW_ERROR 52
+#define PARSE_ERROR 53
+#define VARIABLE_DECLARATION_ERROR 54
+#define VARIABLE_EXPANSION_ERROR 55
+#define VARIABLE_ASSIGNMENT_ERROR 56
+#define NODE_NOT_FOUND_ERROR 57
+#define NODE_ASSIGNMENT_ERROR 58
 
 typedef struct node_ {
     char key[KEY_SIZE];
     char value[VALUE_SIZE];
     bool env;
     struct node_ *next;
+    struct node_ *prev;
 } node;
 
 
