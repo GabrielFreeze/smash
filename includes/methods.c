@@ -23,7 +23,7 @@ int tokens_len(char* string)
         if (in_quotes)
             goto end;
 
-        if (type == META && prev_type == NORMAL)
+        if (type == META && (prev_type == NORMAL || prev_type == QUOTE))
             ++count;
 
         end:
@@ -112,7 +112,7 @@ void handle_error(int error)
     if (error == VARIABLE_EXPANSION_ERROR)
         fprintf(stderr, VARIABLE_EXPANSION_MSG);
 }
-char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_indices, int* var_indices_len)
+char** tokens_get(char* input, int* length, byte* error, tokenchar_pair** var_indices, int* var_indices_len)
 {  
     
     int index = 0;
@@ -189,7 +189,7 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
             type = NORMAL;
 
 
-        if (type == META && prev_type == NORMAL)
+        if (type == META && (prev_type == NORMAL || prev_type == QUOTE))
         {
             if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
                 {   
@@ -239,6 +239,7 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
 
 }
 void tokens_free(char** tokens, int length)
+
 {
     for (int i = 0; i < length; i++)
     {
@@ -308,7 +309,7 @@ bool vars_valid(char* token, byte j)
 
     return false;        
 }
-int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_indices_len)
+int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_indices_len, byte m)
 {
     int equal;
     char token[TOKEN_SIZE];
@@ -322,81 +323,77 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
     byte append_len = 0;
     byte original_len = 0;   
 
-    for (byte i = 0; i < var_indices_len; i++)
+    token_index = var_indices[m].token_index;
+    char_index = var_indices[m].char_index;
+
+    strcpy(token, tokens[token_index] + char_index); //Ignoring all before the $
+    end = strlen(token);
+
+    if (token[1] == '{') //Using <Any Chars> ${...} <Any Chars> notation
     {
-
-        offset = 1;
-        token_index = var_indices[i].token_index;
-        char_index = var_indices[i].char_index;
-
-        strcpy(token, tokens[token_index] + char_index); //Ignoring all before the $
-        end = strlen(token);
-
-        if (token[1] == '{') //Using <Any Chars> ${...} <Any Chars> notation
+        for (byte l = 2; l < strlen(token); l++)
         {
-            for (byte l = 2; l < strlen(token); l++)
+            if (token[l] == '}')
             {
-                if (token[l] == '}')
-                {
-                    end = l;
-                    break;
-                }
-            }
-            if (end == 2)
-                return VARIABLE_DECLARATION_ERROR;
-            
-            token[end] = '\0';
-            offset = 2;
-        }
-        else //Using  <Any Chars> $... <Illegeal Chars> notation
-        {
-            //Stop until you encounter an illegal character,
-            for (byte j = 1; j < end; j++)
-            {
-                if (!vars_valid(token,j))
-                {
-                    end =  j;
-                    token[end] = '\0';
-                    break;
-                }      
-            }
-                
-        }
-            
-
-        for (node* current_node = head; current_node != NULL; current_node = current_node->next)
-        {
-            if ((equal = strcmp(token + offset, current_node->key)) == 0)
-            {
-                strcpy(append, tokens[token_index] + char_index + end + offset-1);
-
-                strcpy(tokens[token_index] + char_index, current_node->value);
-                append_len = strlen(append);
-                value_len = strlen(current_node->value);
-
-                for (byte k = 0; k < append_len+1; k++)
-                    tokens[token_index][char_index+value_len+k] = append[k];
-
+                end = l;
                 break;
             }
-
         }
-
-        if (equal)
-            return VARIABLE_EXPANSION_ERROR;
-
-        //For the remaining variables within the token, add to char_index: - var_name(including $) + value_len
-        // Since the current token will be edited and all pointers to variable characters must be shifted.
-
-        for (byte j = i+1; j < vars_len; j++)
+        if (end == 2)
+            return VARIABLE_DECLARATION_ERROR;
+        
+        token[end] = '\0';
+        offset = 2;
+    }
+    else //Using  <Any Chars> $... <Illegeal Chars> notation
+    {
+        //Stop until you encounter an illegal character,
+        for (byte j = 1; j < end; j++)
         {
-            if (var_indices[j].token_index != token_index)
+            if (!vars_valid(token,j))
+            {
+                end =  j;
+                token[end] = '\0';
                 break;
+            }      
+        }
             
-            var_indices[j].char_index += -(strlen(token) + offset-1) + value_len;
+    }
+        
+
+    for (node* current_node = head; current_node != NULL; current_node = current_node->next)
+    {
+        if ((equal = strcmp(token + offset, current_node->key)) == 0)
+        {
+            strcpy(append, tokens[token_index] + char_index + end + offset-1);
+
+            strcpy(tokens[token_index] + char_index, current_node->value);
+            append_len = strlen(append);
+            value_len = strlen(current_node->value);
+
+            for (byte k = 0; k < append_len+1; k++)
+                tokens[token_index][char_index+value_len+k] = append[k];
+
+            break;
         }
 
     }
+
+    if (equal)
+        return VARIABLE_EXPANSION_ERROR;
+
+    //For the remaining variables within the token, add to char_index: - var_name(including $) + value_len
+    // Since the current token will be edited, all pointers to variable characters must be shifted.
+
+    for (byte j = m+1; j < var_indices_len; j++)
+    {
+        if (var_indices[j].token_index != token_index)
+            break;
+        
+        var_indices[j].char_index += -(strlen(token) + offset-1) + value_len;
+    }
+
+    
 
 
     return 0;
@@ -433,13 +430,9 @@ node* node_search(char* key)
     if ((current_node = head) == NULL)
         return NULL;
     
-    while (strcmp(current_node->key,key))
-        {
-            if (current_node == NULL)
-                return NULL;
+    while (current_node != NULL && strcmp(current_node->key,key))
+        current_node = current_node->next;
 
-            current_node = current_node->next;
-        }
     return current_node;
 }
 byte node_delete(char* key)
@@ -467,49 +460,46 @@ void nodes_print()
     for (node* current_node = head; current_node != NULL; current_node = current_node->next)
         printf("Key:[%s]\nValue:[%s]\n",current_node->key, current_node->value);  
 }
-byte assign_vars(char** tokens, byte length)
+byte assign_vars(char** tokens, byte length, byte i)
 {
 
+    node* current_node;
+    char current_token[TOKEN_SIZE];
+    char key_value[2][TOKEN_SIZE];
+    byte j = 0;
+    byte current_token_len = strlen(tokens[i]);
+    byte error;
 
-    for (byte i = 0; i < length; i++)
-    {   
-        node* current_node;
-        char current_token[TOKEN_SIZE];
-        char key_value[2][TOKEN_SIZE];
-        byte j = 0;
-        byte current_token_len = strlen(tokens[i]);
-        byte error;
+    strcpy(current_token,tokens[i]);
 
-        strcpy(current_token,tokens[i]);
-
-        for (char* string = strtok(current_token, "="); (string != NULL) && (strlen(string) != current_token_len); string = strtok(NULL, "="))
-        {
-            if (j == 2)
-                return VARIABLE_ASSIGNMENT_ERROR;
-            strcpy(key_value[j++],string);
-        }
-
-        if (j == 0)
-            break;
-
-        if (j != 2)
+    for (char* string = strtok(current_token, "="); (string != NULL) && (strlen(string) != current_token_len); string = strtok(NULL, "="))
+    {
+        if (j == 2)
             return VARIABLE_ASSIGNMENT_ERROR;
-        
-        //Assign current_node to node with key = key_value[0] if it exists,
-        // otherwise,  create it with the values;
-        if ((current_node = node_search(key_value[0])) == NULL)
-        {
-            if (error = node_insert(key_value[0], key_value[1], false))  
-                return error;
-        }
-        else
-        {
-            strcpy(current_node->key, key_value[0]);
-            strcpy(current_node->value, key_value[1]);
-        }
-    
-    
+        strcpy(key_value[j++],string);
     }
+
+    if (j == 0) //If there isnt an =, exit but do not raise an error.
+        return 0;
+
+    if (j != 2) //This means that there was more than one =
+        return VARIABLE_ASSIGNMENT_ERROR;
+    
+    //Assign current_node to node with key == key_value[0] if it exists,
+    // otherwise,  create it with the values;
+    if ((current_node = node_search(key_value[0])) == NULL)
+    {
+        if (error = node_insert(key_value[0], key_value[1], false))  
+            return error;
+    }
+    else
+    {
+        strcpy(current_node->key, key_value[0]);
+        strcpy(current_node->value, key_value[1]);
+    }
+
+
+    
     return 0;
 
     //Find token with =.
