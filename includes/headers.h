@@ -8,15 +8,17 @@
 
 int tokens_len(char* string);
 int char_type(char* string, int j);
-char** tokens_get(char* input, int* length, byte* error, tokenchar_pair** var_indices, int* var_indices_len);
+char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_indices, int* var_indices_len);
 bool is_deref(char* string, int upper);
-void handle_error(int error);
-void tokens_free(char** tokens, int length);
+int handle_error(int error);
+int tokens_free(char** tokens, int length);
+int var_indices_free(tokenchar_pair* var_indices);
 bool is_var(char* token);
 int init_vars(void);
-bool vars_valid(char* token, byte j);
-int expand_vars(char** tokens, tokenchar_pair* var_indices, int var_indices_len, byte m);
-byte node_insert(char* key, char* value, bool env);
-byte node_delete(char* key);
+bool vars_valid(char* token, int j);
+int expand_vars(char** tokens, tokenchar_pair* var_indices, int var_indices_len, int m);
+int node_insert(char* key, char* value, bool env);
+int node_delete(char* key);
 node* node_search(char* key);
-byte assign_vars(char** tokens, byte length, byte i);
+int assign_vars(char** tokens, int length, int i);
+int contains_char(char* string, char a);

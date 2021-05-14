@@ -26,7 +26,9 @@ int main(int argc, char** argv)
     char** tokens = NULL;
     tokenchar_pair* var_indices = NULL;
     int var_indices_len;
-    byte error;
+    int error;
+    bool try_again = false;
+    bool interpret_vars_assign = false;
 
 
     if (error = init_vars())
@@ -40,55 +42,46 @@ int main(int argc, char** argv)
     {
         if (input[0] != '\0' && input[0] != '/')
         {
-
-            if ((tokens = tokens_get(input, &token_num, &error, &var_indices, &var_indices_len)) == NULL)
-            {
-                handle_error(error);
-                continue;     
+            tokens = tokens_get(input, &token_num, &error, &var_indices, &var_indices_len);
+            if (error)
+                goto end;    
                 
-            }
+            if (contains_char(tokens[0],'=') != -1)
+                interpret_vars_assign = true;
+            
 
             printf("Number of tokens: %d\n",token_num);
-            byte i,j;
 
+            int i,j;
             for (i = 0, j = 0; i < token_num; i++)  //Loop through all tokens, performing variable expansion and assignment per token.
             {
                 if ((j != var_indices_len) && (i == var_indices[j].token_index)) //If variable expansion has to be performed on the token at i
                 {
                     if (error = expand_vars(tokens, var_indices, var_indices_len, j++))
-                    {
-                        handle_error(error);
-                        continue;
-                    }
+                        goto end;
+                          
                 }
 
-                if (error = assign_vars(tokens, token_num, i))
-                {
-                    handle_error(error);
-                    continue;
-                }
+                
+                if ((interpret_vars_assign) && (error = assign_vars(tokens, token_num, i)))
+                    goto end;
+                
                     
             }
 
+            if (interpret_vars_assign)
+                goto end;
 
+            //From this comment forward, the first argument the user entered is sure to be a command, and not a variable assignment statement
 
-            // if (error = expand_vars(tokens, var_indices, var_indices_len))
-            // {
-            //     handle_error(error);
-            //     continue;
-            // }
-
-            // if(error = assign_vars(tokens, token_num))
-            // {
-            //     printf("error\n");
-            // }
-
-
-            for (byte i = 0; i < token_num; i++)
+            //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            for (int i = 0; i < token_num; i++)
                 printf("%s\n",tokens[i]);
             
-            free(var_indices);
-            tokens_free(tokens, token_num);
+            end:
+                handle_error(error);
+                tokens_free(tokens,token_num);
+                var_indices_free(var_indices);
 
         }
         free(input);

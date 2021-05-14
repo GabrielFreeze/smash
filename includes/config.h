@@ -10,6 +10,9 @@
 #define PARSE_ERROR_MSG "Error while parsing.\n"
 #define VARIABLE_DECLARATION_MSG "Do you have a variable expansion character in quotes or referencing illegal characters?\n"
 #define VARIABLE_EXPANSION_MSG "Variable does not exsist.\n"
+#define VARIABLE_ASSIGNMENT_MSG "Invalid 'assign' operation.\n"
+#define NODE_NOT_FOUND_MSG "Reference to non existent variable.\n"
+#define NODE_ASSIGNMENT_MSG "Could not create new variable.\n"
 
 
 #define NONE -1
@@ -28,7 +31,8 @@
 #define VARIABLE_ASSIGNMENT_ERROR 56
 #define NODE_NOT_FOUND_ERROR 57
 #define NODE_ASSIGNMENT_ERROR 58
-
+#define TOKENS_MEMORY_ERROR 59
+#define VARINDICES_MEMORY_ERROR 60
 typedef struct node_ {
     char key[KEY_SIZE];
     char value[VALUE_SIZE];
@@ -44,8 +48,8 @@ typedef unsigned short two_bytes;
 
 typedef struct tokenchar_pair_struct
 {
-    byte token_index;
-    byte char_index;
+    int token_index;
+    int char_index;
 } tokenchar_pair;
 
 char* prompt = {"init> "};
@@ -57,15 +61,16 @@ two_bytes vars_len = 0;
 
 // char* env_key_startup[KEY_SIZE] = {"PATH", "PROMPT", "CWD", "USER", "HOME", "SHELL", "TERMINAL", "EXITCODE"};
 // char* env_val_startup[VALUE_SIZE] = {"","","","","","","","","",};
-typedef struct var
-{
-    char key[KEY_SIZE];
-    char value[VALUE_SIZE];
-    bool is_valid;
-    bool env;
-} vars[VARIABLE_LENGTH];
+// typedef struct var
+// {
+//     char key[KEY_SIZE];
+//     char value[VALUE_SIZE];
+//     bool is_valid;
+//     bool env;
+// } vars[VARIABLE_LENGTH];
 
 
 
-vars variables;
+// vars variables;
 node* head;
+

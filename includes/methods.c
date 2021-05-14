@@ -95,8 +95,10 @@ bool is_deref(char* string, int upper)
     return ((upper-lower) % 2 == 0);
 
 }
-void handle_error(int error)
+int handle_error(int error)
 {
+    if (error == 0)
+        return 0;
     if (error == MEMORY_ERROR)
         fprintf(stderr, MEMORY_ERROR_MSG) ;
 
@@ -111,48 +113,65 @@ void handle_error(int error)
 
     if (error == VARIABLE_EXPANSION_ERROR)
         fprintf(stderr, VARIABLE_EXPANSION_MSG);
+
+    if (error == VARIABLE_ASSIGNMENT_ERROR)
+        fprintf(stderr, VARIABLE_ASSIGNMENT_MSG);
+    
+    if (error == NODE_NOT_FOUND_ERROR)
+        fprintf(stderr, NODE_NOT_FOUND_MSG);
+
+    if (error == NODE_ASSIGNMENT_ERROR)
+        fprintf(stderr, NODE_ASSIGNMENT_MSG);
+
+    return 0;
+    
 }
-char** tokens_get(char* input, int* length, byte* error, tokenchar_pair** var_indices, int* var_indices_len)
+char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_indices, int* var_indices_len)
 {  
     
     int index = 0;
     int j = 0;
     int var_index = 0;
     char** tokens;
+    int max_length;
     tokenchar_pair* var_indices2;
     char current_token[TOKEN_SIZE];
     bool in_quotes = false;
     int type, prev_type = NONE;
 
-    if ((*length = tokens_len(input)) <= 0)
+    if ((max_length = tokens_len(input)) <= 0)
     {
         *error = PARSE_ERROR;
         return NULL;
     }
 
-    if (((tokens = (char**) malloc(*length * sizeof(char*))) == NULL) ||
-    ((var_indices2 = (tokenchar_pair*) malloc(*length * sizeof(tokenchar_pair))) == NULL))
+    if ((tokens = (char**) malloc(max_length * sizeof(char*))) == NULL)
     {
-        *error = MEMORY_ERROR;
-        return NULL;
+        *error = TOKENS_MEMORY_ERROR;
+        return tokens;
+    }
+
+    if((var_indices2 = (tokenchar_pair*) malloc(max_length * sizeof(tokenchar_pair))) == NULL)
+    {
+        *error = VARINDICES_MEMORY_ERROR;
+        return tokens;
     }
  
 
     for (int i = 0; i < strlen(input); i++)
     {
+        prev_type = type;
         type = char_type(input, i);
 
         if (j == TOKEN_SIZE)
         {
             *error =  BUFFER_OVERFLOW_ERROR;
-            tokens_free(tokens, index);
-            return NULL;
+            return tokens;
         }
         if (prev_type == VARIABLE && type != NORMAL)
         {
             *error = VARIABLE_DECLARATION_ERROR;
-            tokens_free(tokens, index);
-            return NULL;
+            return tokens;
         }
         
         if (type == VARIABLE)
@@ -162,27 +181,9 @@ char** tokens_get(char* input, int* length, byte* error, tokenchar_pair** var_in
         }
 
         if (type == QUOTE)
-        {
-            // if ((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
-            // {
-
-            //     if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
-            //     {   
-            //         *error = MEMORY_ERROR;
-            //         tokens_free(tokens, index);
-            //         return NULL;
-            //     }
-
-            //     current_token[j++] = '\0';
-            //     strncpy(tokens[index++], current_token, j);
-
-
-            //     j = 0;  
-            // }
-                
+        {       
             in_quotes = in_quotes? false:true;
-            goto end;
-            
+            continue;   
         }            
 
         if (in_quotes && type != ESCAPE && type != VARIABLE)
@@ -194,30 +195,27 @@ char** tokens_get(char* input, int* length, byte* error, tokenchar_pair** var_in
             if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
                 {   
                     *error = MEMORY_ERROR;
-                    tokens_free(tokens, index);
-                    return NULL;
+                    return tokens;
                 }
             
 
             current_token[j++] = '\0';
             strncpy(tokens[index++], current_token, j);
 
+            *length = index;
             j = 0;
         }
         else if ((type == META) || (type == ESCAPE))
-            goto end;
+            continue;
         else
             current_token[j++] = input[i];
-            
-        end:
-            prev_type = type;     
+                
     }
 
     if(in_quotes)
     {
         *error = PARSE_ERROR;
-        tokens_free(tokens, index);
-        return NULL;
+        return tokens;
     }
 
     if (j > 0) //If j is greater than 0 , that means there is data in the current_token vector
@@ -225,31 +223,42 @@ char** tokens_get(char* input, int* length, byte* error, tokenchar_pair** var_in
         if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
         {   
             *error = MEMORY_ERROR;
-            tokens_free(tokens, index);
-            return NULL;
+            return tokens;
         }
-
         current_token[j++] = '\0';
-        strncpy(tokens[index], current_token, j);
+        strncpy(tokens[index++], current_token, j);
+        *length = index;
     }
-
+    *error = 0;
     *var_indices = var_indices2;
     *var_indices_len = var_index;
     return tokens;
 
 }
-void tokens_free(char** tokens, int length)
-
+int tokens_free(char** tokens, int length)
 {
+    if (tokens == NULL)
+        return 0;
+
     for (int i = 0; i < length; i++)
     {
         free(tokens[i]);
     }
     free(tokens);
+    return 0;
+}
+int var_indices_free(tokenchar_pair* var_indices)
+{
+    if (var_indices == NULL)
+        return 0;
+    
+    free(var_indices);
+
+    return 0;
 }
 int init_vars(void)
 {
-    byte error;
+    int error;
 
     if (error = node_insert("PATH", "/usr/bin:/bin:/usr/local/bin" ,true))
         return error;
@@ -286,7 +295,7 @@ int init_vars(void)
     
     //______________________________________________________________________
 
-    if (error = node_insert("TERMINAL", ttyname(0) ,true))
+    if (error = node_insert("TERMINAL", getenv("TERM") ,true))
         return error;
 
     //______________________________________________________________________
@@ -299,7 +308,7 @@ int init_vars(void)
 
 
 }
-bool vars_valid(char* token, byte j)
+bool vars_valid(char* token, int j)
 {
     if (    (token[j] >= '0'  && token[j] <= '9') || 
             (token[j] >= 'a'  && token[j] <= 'z') || 
@@ -309,19 +318,19 @@ bool vars_valid(char* token, byte j)
 
     return false;        
 }
-int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_indices_len, byte m)
+int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_indices_len, int m)
 {
     int equal;
     char token[TOKEN_SIZE];
     char append[TOKEN_SIZE];
 
-    byte end = 0;
-    byte offset = 1;
-    byte token_index;
-    byte char_index; 
-    byte value_len = 0;
-    byte append_len = 0;
-    byte original_len = 0;   
+    int end = 0;
+    int offset = 1;
+    int token_index;
+    int char_index; 
+    int value_len = 0;
+    int append_len = 0;
+    int original_len = 0;   
 
     token_index = var_indices[m].token_index;
     char_index = var_indices[m].char_index;
@@ -331,7 +340,7 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
 
     if (token[1] == '{') //Using <Any Chars> ${...} <Any Chars> notation
     {
-        for (byte l = 2; l < strlen(token); l++)
+        for (int l = 2; l < strlen(token); l++)
         {
             if (token[l] == '}')
             {
@@ -348,7 +357,7 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
     else //Using  <Any Chars> $... <Illegeal Chars> notation
     {
         //Stop until you encounter an illegal character,
-        for (byte j = 1; j < end; j++)
+        for (int j = 1; j < end; j++)
         {
             if (!vars_valid(token,j))
             {
@@ -371,7 +380,7 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
             append_len = strlen(append);
             value_len = strlen(current_node->value);
 
-            for (byte k = 0; k < append_len+1; k++)
+            for (int k = 0; k < append_len+1; k++)
                 tokens[token_index][char_index+value_len+k] = append[k];
 
             break;
@@ -385,7 +394,7 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
     //For the remaining variables within the token, add to char_index: - var_name(including $) + value_len
     // Since the current token will be edited, all pointers to variable characters must be shifted.
 
-    for (byte j = m+1; j < var_indices_len; j++)
+    for (int j = m+1; j < var_indices_len; j++)
     {
         if (var_indices[j].token_index != token_index)
             break;
@@ -394,11 +403,9 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
     }
 
     
-
-
     return 0;
 }
-byte node_insert(char* key, char* value, bool env)
+int node_insert(char* key, char* value, bool env)
 {
     node* new_node;
     if ((new_node = (node*) malloc(sizeof(node))) == NULL)
@@ -435,7 +442,7 @@ node* node_search(char* key)
 
     return current_node;
 }
-byte node_delete(char* key)
+int node_delete(char* key)
 {
     node* current_node;
     node* prev_node;
@@ -460,15 +467,15 @@ void nodes_print()
     for (node* current_node = head; current_node != NULL; current_node = current_node->next)
         printf("Key:[%s]\nValue:[%s]\n",current_node->key, current_node->value);  
 }
-byte assign_vars(char** tokens, byte length, byte i)
+int assign_vars(char** tokens, int length, int i)
 {
 
     node* current_node;
     char current_token[TOKEN_SIZE];
     char key_value[2][TOKEN_SIZE];
-    byte j = 0;
-    byte current_token_len = strlen(tokens[i]);
-    byte error;
+    int j = 0;
+    int current_token_len = strlen(tokens[i]);
+    int error;
 
     strcpy(current_token,tokens[i]);
 
@@ -512,3 +519,14 @@ byte assign_vars(char** tokens, byte length, byte i)
 
 
 }
+int contains_char(char* string, char a)
+{
+    for (int i = 0; i < strlen(string); i++)
+    {
+        if (string[i] == a)
+            return i;
+    }
+
+    return -1;
+}
+
