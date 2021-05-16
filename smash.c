@@ -38,7 +38,7 @@ int main(int argc, char** argv)
     }
 
 
-    while (((input = linenoise(prompt)) != NULL) && strcmp(input, exit_keyword))
+    while (((input = linenoise(prompt)) != NULL))
     {
         if (input[0] != '\0' && input[0] != '/')
         {
@@ -46,7 +46,7 @@ int main(int argc, char** argv)
             if (error)
                 goto end;    
                 
-            if (contains_char(tokens[0],'=') != -1)
+            if (contains_char(tokens[0],'=') != -1) //If the first argument contains an =, then it means the user is doing variable assignment, and the tokens should not be interpreted as [cmd arg0 arg1 ...]
                 interpret_vars_assign = true;
             
 
@@ -74,6 +74,11 @@ int main(int argc, char** argv)
 
             //From this comment forward, the first argument the user entered is sure to be a command, and not a variable assignment statement
 
+            //The first token is the command, all other subsequent tokens are arguments to the command
+
+            //Function that parses tokens. 
+
+            tokens_parse(tokens, token_num);
             //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             for (int i = 0; i < token_num; i++)
                 printf("%s\n",tokens[i]);

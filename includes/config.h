@@ -33,6 +33,23 @@
 #define NODE_ASSIGNMENT_ERROR 58
 #define TOKENS_MEMORY_ERROR 59
 #define VARINDICES_MEMORY_ERROR 60
+#define INVALID_FUNCTION_USE 61 //Intended if programmers (I) call a function with incorrect values
+#define INVALID_ARGS 62
+
+
+#define EXIT_CMD 0
+#define ECHO_CMD 1
+#define CD_CMD 2
+#define SHOWVAR_CMD 3
+#define EXPORT_CMD 4
+#define UNSET_CMD 5
+#define SHOWENV_CMD 6
+#define PUSHD_CMD 7
+#define POPD_CMD 8
+#define DIRS_CMD 9
+#define SOURCE_CMD 10
+
+
 typedef struct node_ {
     char key[KEY_SIZE];
     char value[VALUE_SIZE];
@@ -40,12 +57,8 @@ typedef struct node_ {
     struct node_ *next;
     struct node_ *prev;
 } node;
-
-
 typedef unsigned char byte;
 typedef unsigned short two_bytes;
-
-
 typedef struct tokenchar_pair_struct
 {
     int token_index;
@@ -56,21 +69,12 @@ char* prompt = {"init> "};
 char* exit_keyword = {"exit"};
 char* metacharacters = {" |;<>\t"};
 char* quotes = {"\"\'"};
-two_bytes vars_len = 0;
-
-
-// char* env_key_startup[KEY_SIZE] = {"PATH", "PROMPT", "CWD", "USER", "HOME", "SHELL", "TERMINAL", "EXITCODE"};
-// char* env_val_startup[VALUE_SIZE] = {"","","","","","","","","",};
-// typedef struct var
-// {
-//     char key[KEY_SIZE];
-//     char value[VALUE_SIZE];
-//     bool is_valid;
-//     bool env;
-// } vars[VARIABLE_LENGTH];
+char* internal_commands[TOKEN_SIZE] = {"exit\0","echo","cd","showvar","export","unset","showenv","pushd","popd","dirs","source"};
+int internal_commands_len = 11;
+int vars_len = 0;
 
 
 
-// vars variables;
+
 node* head;
 

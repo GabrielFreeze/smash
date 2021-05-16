@@ -380,6 +380,9 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
             append_len = strlen(append);
             value_len = strlen(current_node->value);
 
+            if (char_index+value_len+append_len > TOKEN_SIZE) //There is not enough space to replace the variable with the textual data 
+                return BUFFER_OVERFLOW_ERROR;
+
             for (int k = 0; k < append_len+1; k++)
                 tokens[token_index][char_index+value_len+k] = append[k];
 
@@ -529,4 +532,115 @@ int contains_char(char* string, char a)
 
     return -1;
 }
+int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
+{
+    int i;
+    int match = 1;
+
+    for(i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
+    
+    if(match)//It is an external command
+        return 0;
+
+    else //It is an internal command
+    {
+        execute_internal(tokens+1, token_num-1, i);
+        //The loop breaks upon finding a match, therefore i should point to the internal command
+
+    }
+        
+    return 0;
+}
+int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
+{
+    //Note that the first element of args is NOT the name of the command, its the first argument
+
+    switch (j)
+    {
+        case EXIT_CMD:
+        {
+            int exit_value;
+            int error;
+            //Maximum arg size is 1
+            if (arg_num > 1)
+                return INVALID_ARGS;
+
+            //If the argument is provided
+            if (arg_num == 1)
+            {
+                //If the argument was translated to int
+                if(!(error = str_to_int(&exit_value,args[0])))
+                {
+                    printf("Shell terminated with exit code [%d]\n",exit_value);
+                    exit(exit_value);
+                }
+                
+                else
+                    return error;
+            }
+            //If no argument was given
+            printf("Shell terminated with exit code [0]\n");
+            exit(0);
+                
+        }
+        case ECHO_CMD:
+        {
+            
+        }
+        case CD_CMD:
+        {
+            
+        }
+        case SHOWVAR_CMD:
+        {
+            
+        }
+        case EXPORT_CMD:
+        {
+            
+        }
+        case UNSET_CMD:
+        {
+            
+        }
+        case SHOWENV_CMD:
+        {
+            
+        }
+        case PUSHD_CMD:
+        {
+            
+        }
+        case POPD_CMD:
+        {
+            
+        }
+        case DIRS_CMD:
+        {
+            
+        }
+        case SOURCE_CMD:
+        {
+            
+        }
+      
+        default:
+            return INVALID_FUNCTION_USE;
+    }
+}
+int str_to_int(int* value, char* string)
+{
+    char* end;
+
+    long num = strtol(string, &end, 10);
+
+    //Checks if the string was all numbers, and if this number is small enough to be stored in an int
+    if ((string == end) || (num > INT_MAX) || (num < INT_MIN) || (*end != '\0')) 
+        return INVALID_ARGS;
+
+    *value = (int) num;
+    return 0;
+}
+
+
 

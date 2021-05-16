@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "limits.h"
 #include "config.h"
 
 
@@ -22,3 +23,6 @@ int node_delete(char* key);
 node* node_search(char* key);
 int assign_vars(char** tokens, int length, int i);
 int contains_char(char* string, char a);
+int tokens_parse(char* tokens[TOKEN_SIZE], int token_num);
+int str_to_int(int* value, char* string);
+int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j);
