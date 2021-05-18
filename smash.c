@@ -29,7 +29,7 @@ int main(int argc, char** argv)
     int error;
     bool try_again = false;
     bool interpret_vars_assign = false;
-
+    setbuf(stdout, NULL);
 
     if (error = init_vars())
     {
@@ -37,9 +37,9 @@ int main(int argc, char** argv)
         exit(0);
     }
 
-
     while (((input = linenoise(prompt)) != NULL))
     {
+        interpret_vars_assign = false;
         if (input[0] != '\0' && input[0] != '/')
         {
             tokens = tokens_get(input, &token_num, &error, &var_indices, &var_indices_len);
@@ -73,15 +73,15 @@ int main(int argc, char** argv)
                 goto end;
 
             //From this comment forward, the first argument the user entered is sure to be a command, and not a variable assignment statement
-
             //The first token is the command, all other subsequent tokens are arguments to the command
 
-            //Function that parses tokens. 
+            if(error = tokens_parse(tokens, token_num))
+                return error;
 
-            tokens_parse(tokens, token_num);
+
             //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            for (int i = 0; i < token_num; i++)
-                printf("%s\n",tokens[i]);
+            // for (int i = 0; i < token_num; i++)
+            //     printf("%s\n",tokens[i]);
             
             end:
                 handle_error(error);

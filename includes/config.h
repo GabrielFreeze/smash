@@ -1,7 +1,7 @@
 #pragma once
-#define TOKEN_SIZE 100
-#define KEY_SIZE 50
-#define VALUE_SIZE 50
+#define TOKEN_SIZE 5000
+#define KEY_SIZE 5000
+#define VALUE_SIZE 5000
 #define VARIABLE_LENGTH 100
 #define INIT_VARS_LEN 9
 
@@ -33,8 +33,9 @@
 #define NODE_ASSIGNMENT_ERROR 58
 #define TOKENS_MEMORY_ERROR 59
 #define VARINDICES_MEMORY_ERROR 60
-#define INVALID_FUNCTION_USE 61 //Intended if programmers (I) call a function with incorrect values
-#define INVALID_ARGS 62
+#define INVALID_FUNCTION_USE_ERROR 61 //Intended if programmers (I) call a function with incorrect values
+#define INVALID_ARGS_ERROR 62
+#define SYSTEM_CALL_ERROR 63
 
 
 #define EXIT_CMD 0
@@ -69,12 +70,11 @@ char* prompt = {"init> "};
 char* exit_keyword = {"exit"};
 char* metacharacters = {" |;<>\t"};
 char* quotes = {"\"\'"};
-char* internal_commands[TOKEN_SIZE] = {"exit\0","echo","cd","showvar","export","unset","showenv","pushd","popd","dirs","source"};
+char* internal_commands[TOKEN_SIZE] = {"exit","echo","cd","showvar","export","unset","showenv","pushd","popd","dirs","source"};
 int internal_commands_len = 11;
 int vars_len = 0;
 
 
 
-
+// extern char **environ;
 node* head;
-

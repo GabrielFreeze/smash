@@ -260,8 +260,6 @@ int init_vars(void)
 {
     int error;
 
-    if (error = node_insert("PATH", "/usr/bin:/bin:/usr/local/bin" ,true))
-        return error;
     //______________________________________________________________________
     
     if (error = node_insert("PROMPT", "init" ,true))
@@ -271,7 +269,7 @@ int init_vars(void)
 
     char cwd[VALUE_SIZE];
 
-    if (error = node_insert("CWD", getcwd(cwd, sizeof(cwd)) ,true))
+    if (error = node_insert("CWD", getenv("HOME") ,true))
         return error;
 
     //______________________________________________________________________
@@ -304,10 +302,13 @@ int init_vars(void)
         return error;
 
 
+    if (error = node_insert("PATH", getenv("PATH") ,true))
+        return error;
+
     return 0;
 
 
-}
+} 
 bool vars_valid(char* token, int j)
 {
     if (    (token[j] >= '0'  && token[j] <= '9') || 
@@ -320,7 +321,7 @@ bool vars_valid(char* token, int j)
 }
 int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_indices_len, int m)
 {
-    int equal;
+    int equal = 0;
     char token[TOKEN_SIZE];
     char append[TOKEN_SIZE];
 
@@ -368,19 +369,19 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
         }
             
     }
-        
+    //Check if its in the environment variables
 
     for (node* current_node = head; current_node != NULL; current_node = current_node->next)
     {
-        if ((equal = strcmp(token + offset, current_node->key)) == 0)
+        if (!(equal = strcmp(token + offset, current_node->key)))
         {
             strcpy(append, tokens[token_index] + char_index + end + offset-1);
-
             strcpy(tokens[token_index] + char_index, current_node->value);
             append_len = strlen(append);
             value_len = strlen(current_node->value);
 
-            if (char_index+value_len+append_len > TOKEN_SIZE) //There is not enough space to replace the variable with the textual data 
+            //If there is not enough space to replace the variable with the textual data and also include all other subsequent characters
+            if (value_len > TOKEN_SIZE || append_len > TOKEN_SIZE || char_index+value_len+append_len > TOKEN_SIZE)
                 return BUFFER_OVERFLOW_ERROR;
 
             for (int k = 0; k < append_len+1; k++)
@@ -388,8 +389,9 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
 
             break;
         }
-
     }
+    
+    
 
     if (equal)
         return VARIABLE_EXPANSION_ERROR;
@@ -417,11 +419,11 @@ int node_insert(char* key, char* value, bool env)
     if (key == NULL || value == NULL)
         return NODE_ASSIGNMENT_ERROR;
 
-
+    printf("%d\n",strlen(value));
     strcpy(new_node->key, key);
     strcpy(new_node->value, value);
     new_node->env = env;
-
+    printf("%d\n",strlen(new_node->value));
     new_node->next = head;
     head = new_node;
     head->prev= new_node;
@@ -468,7 +470,7 @@ int node_delete(char* key)
 void nodes_print()
 {
     for (node* current_node = head; current_node != NULL; current_node = current_node->next)
-        printf("Key:[%s]\nValue:[%s]\n",current_node->key, current_node->value);  
+        printf("%s=%s\n",current_node->key, current_node->value);  
 }
 int assign_vars(char** tokens, int length, int i)
 {
@@ -536,7 +538,7 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
 {
     int i;
     int match = 1;
-
+    int error;
     for(i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
     
     if(match)//It is an external command
@@ -544,7 +546,8 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
 
     else //It is an internal command
     {
-        execute_internal(tokens+1, token_num-1, i);
+        if (error = execute_internal(tokens+1, token_num-1, i))
+            return error;
         //The loop breaks upon finding a match, therefore i should point to the internal command
 
     }
@@ -554,7 +557,7 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
 int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
 {
     //Note that the first element of args is NOT the name of the command, its the first argument
-
+    int error;
     switch (j)
     {
         case EXIT_CMD:
@@ -563,7 +566,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             int error;
             //Maximum arg size is 1
             if (arg_num > 1)
-                return INVALID_ARGS;
+                return INVALID_ARGS_ERROR;
 
             //If the argument is provided
             if (arg_num == 1)
@@ -585,27 +588,68 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
         case ECHO_CMD:
         {
+            if (arg_num < 1)
+                return INVALID_ARGS_ERROR;
             
+            for(int i = 0; i < arg_num; i++)
+                printf("%s ",args[i]);
+            printf("\n");
+            return 0;
         }
         case CD_CMD:
         {
             
         }
         case SHOWVAR_CMD:
-        {
-            
+        {   
+            if (arg_num > 1)
+                return INVALID_ARGS_ERROR;
+
+            if (!arg_num) //Print all shell vars
+                nodes_print();
+            else //Print just one shell var
+            {
+                node* current_node;
+                if ((current_node = node_search(args[0])) == NULL)
+                    return NODE_NOT_FOUND_ERROR;
+                printf("%s=%s\n",current_node->key,current_node->value);
+            }
+
+            return 0;
         }
         case EXPORT_CMD:
         {
+            if (arg_num != 1)
+                return INVALID_ARGS_ERROR;
+
+            node* current_node;
+            if ((current_node = node_search(args[0])) == NULL)
+                return NODE_NOT_FOUND_ERROR;
+
+            if (setenv(current_node->key,current_node->value,69))
+                return SYSTEM_CALL_ERROR;
             
+            return 0;
         }
         case UNSET_CMD:
         {
-            
+            if (arg_num != 1)
+                return INVALID_ARGS_ERROR;
+
+            if (error = node_delete(args[0]))
+                return error;
+
+            if (unsetenv(args[0]))
+                return SYSTEM_CALL_ERROR;
+
+            return 0;
         }
         case SHOWENV_CMD:
         {
-            
+        //  for (char** var = environ; *var; var++)
+        //         printf("%s\n",*var);
+
+        //     return 0;
         }
         case PUSHD_CMD:
         {
@@ -625,7 +669,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
       
         default:
-            return INVALID_FUNCTION_USE;
+            return INVALID_FUNCTION_USE_ERROR;
     }
 }
 int str_to_int(int* value, char* string)
@@ -636,7 +680,7 @@ int str_to_int(int* value, char* string)
 
     //Checks if the string was all numbers, and if this number is small enough to be stored in an int
     if ((string == end) || (num > INT_MAX) || (num < INT_MIN) || (*end != '\0')) 
-        return INVALID_ARGS;
+        return INVALID_ARGS_ERROR;
 
     *value = (int) num;
     return 0;

@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include "limits.h"
 #include "config.h"
+#include <errno.h>
 
 
 int tokens_len(char* string);
