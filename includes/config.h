@@ -52,8 +52,8 @@
 
 
 typedef struct node_ {
-    char key[KEY_SIZE];
-    char value[VALUE_SIZE];
+    char* key;
+    char* value;
     bool env;
     struct node_ *next;
     struct node_ *prev;
@@ -66,7 +66,7 @@ typedef struct tokenchar_pair_struct
     int char_index;
 } tokenchar_pair;
 
-char* prompt = {"init> "};
+char* prompt_default = {"init> "};
 char* exit_keyword = {"exit"};
 char* metacharacters = {" |;<>\t"};
 char* quotes = {"\"\'"};

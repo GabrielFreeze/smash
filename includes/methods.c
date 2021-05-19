@@ -11,25 +11,18 @@ int tokens_len(char* string)
     {
         type = char_type(string,i);
 
-
         if (type == QUOTE)
-        {
-            // if((in_quotes && prev_type != QUOTE) || (!in_quotes && prev_type == NORMAL))
-            //     ++count;
-
             in_quotes = in_quotes? false:true;
-        }
-
-        if (in_quotes)
-            goto end;
-
-        if (type == META && (prev_type == NORMAL || prev_type == QUOTE))
+        
+        //If: The character is a meta character, and its previous characters are either normal or quote
+        //Then: This means a token just ended, so increment token_count
+        if (!in_quotes && type == META && (prev_type == NORMAL || prev_type == QUOTE))
             ++count;
 
-        end:
             prev_type = type;
     }
-
+    //Since the only way a token is considered is if a string of characters is terminated with a meta character...
+    //Check if the last character was META or not. If it wasn't meta, that means there is a token that we need to consider
     return (type == NORMAL || type == QUOTE)? count+1 : count;
     
 }
@@ -150,7 +143,7 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
         *error = TOKENS_MEMORY_ERROR;
         return tokens;
     }
-
+    //Lets assume the worst case scenario. All the tokens provided are variables that need to be expanded.
     if((var_indices2 = (tokenchar_pair*) malloc(max_length * sizeof(tokenchar_pair))) == NULL)
     {
         *error = VARINDICES_MEMORY_ERROR;
@@ -168,12 +161,15 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
             *error =  BUFFER_OVERFLOW_ERROR;
             return tokens;
         }
+
+        //Eg: $ followed by a META, or $""
         if (prev_type == VARIABLE && type != NORMAL)
         {
             *error = VARIABLE_DECLARATION_ERROR;
             return tokens;
         }
         
+        //Lets store the index to the variable for later use (when we perform expansion)
         if (type == VARIABLE)
         {
             var_indices2[var_index].token_index = index;
@@ -186,10 +182,12 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
             continue;   
         }            
 
+        //Anything in quotes except for special shell characters should be treated as is, devoid of any special meaning.
         if (in_quotes && type != ESCAPE && type != VARIABLE)
             type = NORMAL;
 
-
+        //Just like the token_len function, if its a metacharacter terminated a string, then this is the end of a token
+        //So lets save it in into tokens.
         if (type == META && (prev_type == NORMAL || prev_type == QUOTE))
         {
             if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
@@ -198,13 +196,17 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
                     return tokens;
                 }
             
-
             current_token[j++] = '\0';
             strncpy(tokens[index++], current_token, j);
 
-            *length = index;
+            //If the function returns due to an error mid-way, then that means not all tokens have
+            //dynamic memory allocated to them. Length keeps track of the current token_length so 
+            //only the tokens with dynamic memory are freed afterwards.
+            *length = index; 
+
             j = 0;
         }
+
         else if ((type == META) || (type == ESCAPE))
             continue;
         else
@@ -212,13 +214,15 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
                 
     }
 
+    //If we traverse the whole input string and we are still in quotes, then that means the user used quotes incorrectly.
     if(in_quotes)
     {
         *error = PARSE_ERROR;
         return tokens;
     }
 
-    if (j > 0) //If j is greater than 0 , that means there is data in the current_token vector
+    //If j is greater than 0 , that means there is still data in the current_token vector, which has not been added to tokens.
+    if (j > 0) 
     {
         if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
         {   
@@ -229,9 +233,11 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
         strncpy(tokens[index++], current_token, j);
         *length = index;
     }
+    
     *error = 0;
     *var_indices = var_indices2;
     *var_indices_len = var_index;
+
     return tokens;
 
 }
@@ -262,15 +268,20 @@ int init_vars(void)
 
     //______________________________________________________________________
     
-    if (error = node_insert("PROMPT", "init" ,true))
+    if (error = node_insert("PROMPT", "init>" ,true))
         return error;
 
     //______________________________________________________________________
 
     char cwd[VALUE_SIZE];
 
+
+
     if (error = node_insert("CWD", getenv("HOME") ,true))
         return error;
+    
+    if (setenv("PWD",getenv("HOME"),1))
+        return errno;
 
     //______________________________________________________________________
     
@@ -383,7 +394,8 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
             //If there is not enough space to replace the variable with the textual data and also include all other subsequent characters
             if (value_len > TOKEN_SIZE || append_len > TOKEN_SIZE || char_index+value_len+append_len > TOKEN_SIZE)
                 return BUFFER_OVERFLOW_ERROR;
-
+                
+            //Adding the other characters after the key was replaced with the value
             for (int k = 0; k < append_len+1; k++)
                 tokens[token_index][char_index+value_len+k] = append[k];
 
@@ -413,17 +425,19 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
 int node_insert(char* key, char* value, bool env)
 {
     node* new_node;
-    if ((new_node = (node*) malloc(sizeof(node))) == NULL)
-        return MEMORY_ERROR;
 
     if (key == NULL || value == NULL)
         return NODE_ASSIGNMENT_ERROR;
 
-    printf("%d\n",strlen(value));
+    if  (!((new_node = (node*) malloc(sizeof(node))) &&
+        ((new_node->key = (char*) malloc(strlen(key))) && 
+        (new_node->value = (char*) malloc(strlen(value))))))
+        return MEMORY_ERROR;
+
+
     strcpy(new_node->key, key);
     strcpy(new_node->value, value);
     new_node->env = env;
-    printf("%d\n",strlen(new_node->value));
     new_node->next = head;
     head = new_node;
     head->prev= new_node;
@@ -452,20 +466,32 @@ int node_delete(char* key)
     node* current_node;
     node* prev_node;
 
-    if ((current_node = node_search(key)) == NULL)
+    if (!(current_node = node_search(key)))
         return NODE_NOT_FOUND_ERROR;
 
     //If previous node is Null, then the node to delete is the first one
 
-    if (current_node->prev == NULL)
-        head =  current_node->next;
-    else
+    if (current_node->prev)
         current_node->prev->next = current_node->next;
+    else
+        head = current_node->next;
 
 
     vars_len--;
     return 0;
 
+}
+int node_edit(char* key, char* value)
+{
+    node* current_node;
+
+    if (!(current_node = node_search(key)))
+        return NODE_NOT_FOUND_ERROR;
+    
+    current_node = (node*) realloc(current_node, strlen(value));
+    strcpy(current_node->value,value);
+
+    return 0;
 }
 void nodes_print()
 {
@@ -491,14 +517,14 @@ int assign_vars(char** tokens, int length, int i)
         strcpy(key_value[j++],string);
     }
 
-    if (j == 0) //If there isnt an =, exit but do not raise an error.
-        return 0;
-
-    if (j != 2) //This means that there was more than one =
+    //If j != 2 then that means the token didn't have exactly one '='
+    if (j != 2)
         return VARIABLE_ASSIGNMENT_ERROR;
+
     
-    //Assign current_node to node with key == key_value[0] if it exists,
-    // otherwise,  create it with the values;
+    //If: The variable doesn't exist
+    //Then: Create it and assign it the values given.
+    //Else(if it does exists): Change the value of the variable. 
     if ((current_node = node_search(key_value[0])) == NULL)
     {
         if (error = node_insert(key_value[0], key_value[1], false))  
@@ -506,21 +532,11 @@ int assign_vars(char** tokens, int length, int i)
     }
     else
     {
-        strcpy(current_node->key, key_value[0]);
-        strcpy(current_node->value, key_value[1]);
+        if (error = node_edit(key_value[0], key_value[1]))
+            return error;
     }
-
-
     
     return 0;
-
-    //Find token with =.
-    //Split LHS(key) and RHS(value)
-    //Does key already exist?
-    //      N = Create it
-    //
-    //Assign value to key.      
-    //bool env is false by default since this is a shell variable.
 
 
 }
