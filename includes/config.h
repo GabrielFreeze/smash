@@ -26,16 +26,23 @@
 #define MEMORY_ERROR 51
 #define BUFFER_OVERFLOW_ERROR 52
 #define PARSE_ERROR 53
+
 #define VARIABLE_DECLARATION_ERROR 54
 #define VARIABLE_EXPANSION_ERROR 55
 #define VARIABLE_ASSIGNMENT_ERROR 56
+#define VARINDICES_MEMORY_ERROR 60
+
 #define NODE_NOT_FOUND_ERROR 57
 #define NODE_ASSIGNMENT_ERROR 58
+
+#define STACK_FULL_ERROR 64
+#define STACK_EMPTY_ERROR 65
+
+
 #define TOKENS_MEMORY_ERROR 59
-#define VARINDICES_MEMORY_ERROR 60
 #define INVALID_FUNCTION_USE_ERROR 61 //Intended if programmers (I) call a function with incorrect values
 #define INVALID_ARGS_ERROR 62
-#define SYSTEM_CALL_ERROR 63
+#define ENV_VARIABLE_NOT_FOUND_ERROR 63
 
 
 #define EXIT_CMD 0
@@ -71,10 +78,9 @@ char* exit_keyword = {"exit"};
 char* metacharacters = {" |;<>\t"};
 char* quotes = {"\"\'"};
 char* internal_commands[TOKEN_SIZE] = {"exit","echo","cd","showvar","export","unset","showenv","pushd","popd","dirs","source"};
+char** envp;
+
 int internal_commands_len = 11;
-int vars_len = 0;
+int error = 0;
 
-
-
-// extern char **environ;
 node* head;

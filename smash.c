@@ -1,11 +1,7 @@
 //_______________________________Includes______________________________________
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include "includes/linenoise-master/linenoise.c"
 #include "includes/methods.c"
-#include "includes/config.h"
-#include "includes/linkedlist.c"
+#include "includes/stack.c"
 
 
 //__________________________________Variables__________________________________
@@ -18,22 +14,20 @@
 
 */
 
-int main(int argc, char** argv)
+int main(int argc, char** argv, char** envp_)
 {
-
+    envp = envp_;
     char* input;
     int token_num;
     char** tokens = NULL;
     tokenchar_pair* var_indices = NULL;
     int var_indices_len;
-    int error;
-    bool try_again = false;
     bool interpret_vars_assign = false;
     setbuf(stdout, NULL);
 
     if (error = init_vars())
     {
-        handle_error(error);
+        handle_error();
         exit(0);
     }
     
@@ -45,8 +39,8 @@ int main(int argc, char** argv)
         interpret_vars_assign = false;
         if (input[0] != '\0' && input[0] != '/')
         {
-            tokens = tokens_get(input, &token_num, &error, &var_indices, &var_indices_len);
-            if (error)
+            
+            if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;    
                 
             //If the first argument contains an =, then it means the user is doing variable assignment
@@ -79,17 +73,21 @@ int main(int argc, char** argv)
             //The first token is the command, all other subsequent tokens are arguments to the command.
 
             if(error = tokens_parse(tokens, token_num))
-                return error;
+                goto end;
+            
 
             
             end:
-                handle_error(error);
+                handle_error();
                 tokens_free(tokens,token_num);
                 var_indices_free(var_indices);
                 
                 //If the user decides to delete the PROMPT variable, the default value should display.
-                if (!(prompt = node_search("PROMPT")->value))
+                node* current_node;
+                if (!(current_node = node_search("PROMPT")))
                     prompt = prompt_default;
+                else
+                    prompt = current_node->value;
         }
         free(input);
     }

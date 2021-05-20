@@ -1,6 +1,6 @@
 #include "headers.h"
-#include "linenoise-master/linenoise.h"
-#include "config.h"
+#include "linkedlist.c"
+
 int tokens_len(char* string)
 {
     int count = 0;
@@ -16,13 +16,17 @@ int tokens_len(char* string)
         
         //If: The character is a meta character, and its previous characters are either normal or quote
         //Then: This means a token just ended, so increment token_count
+
+        if (type == QUOTE && prev_type == QUOTE)
+            return 0;
+
         if (!in_quotes && type == META && (prev_type == NORMAL || prev_type == QUOTE))
             ++count;
 
             prev_type = type;
     }
     //Since the only way a token is considered is if a string of characters is terminated with a meta character...
-    //Check if the last character was META or not. If it wasn't meta, that means there is a token that we need to consider
+    //Check if the last character was META or not. If it wasn't meta, that means there is one final token that we need to consider
     return (type == NORMAL || type == QUOTE)? count+1 : count;
     
 }
@@ -88,7 +92,7 @@ bool is_deref(char* string, int upper)
     return ((upper-lower) % 2 == 0);
 
 }
-int handle_error(int error)
+int handle_error()
 {
     if (error == 0)
         return 0;
@@ -119,7 +123,7 @@ int handle_error(int error)
     return 0;
     
 }
-char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_indices, int* var_indices_len)
+char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_indices_len)
 {  
     
     int index = 0;
@@ -134,19 +138,19 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
 
     if ((max_length = tokens_len(input)) <= 0)
     {
-        *error = PARSE_ERROR;
+        error = PARSE_ERROR;
         return NULL;
     }
 
     if ((tokens = (char**) malloc(max_length * sizeof(char*))) == NULL)
     {
-        *error = TOKENS_MEMORY_ERROR;
+        error = TOKENS_MEMORY_ERROR;
         return tokens;
     }
     //Lets assume the worst case scenario. All the tokens provided are variables that need to be expanded.
     if((var_indices2 = (tokenchar_pair*) malloc(max_length * sizeof(tokenchar_pair))) == NULL)
     {
-        *error = VARINDICES_MEMORY_ERROR;
+        error = VARINDICES_MEMORY_ERROR;
         return tokens;
     }
  
@@ -158,14 +162,14 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
 
         if (j == TOKEN_SIZE)
         {
-            *error =  BUFFER_OVERFLOW_ERROR;
+            error =  BUFFER_OVERFLOW_ERROR;
             return tokens;
         }
 
         //Eg: $ followed by a META, or $""
         if (prev_type == VARIABLE && type != NORMAL)
         {
-            *error = VARIABLE_DECLARATION_ERROR;
+            error = VARIABLE_DECLARATION_ERROR;
             return tokens;
         }
         
@@ -192,7 +196,7 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
         {
             if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
                 {   
-                    *error = MEMORY_ERROR;
+                    error = MEMORY_ERROR;
                     return tokens;
                 }
             
@@ -217,7 +221,7 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
     //If we traverse the whole input string and we are still in quotes, then that means the user used quotes incorrectly.
     if(in_quotes)
     {
-        *error = PARSE_ERROR;
+        error = PARSE_ERROR;
         return tokens;
     }
 
@@ -226,7 +230,7 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
     {
         if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
         {   
-            *error = MEMORY_ERROR;
+            error = MEMORY_ERROR;
             return tokens;
         }
         current_token[j++] = '\0';
@@ -234,7 +238,6 @@ char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_ind
         *length = index;
     }
     
-    *error = 0;
     *var_indices = var_indices2;
     *var_indices_len = var_index;
 
@@ -264,7 +267,6 @@ int var_indices_free(tokenchar_pair* var_indices)
 }
 int init_vars(void)
 {
-    int error;
 
     //______________________________________________________________________
     
@@ -274,18 +276,23 @@ int init_vars(void)
     //______________________________________________________________________
 
     char cwd[VALUE_SIZE];
+    strcpy(cwd,getenv("HOME"));
 
 
-
-    if (error = node_insert("CWD", getenv("HOME") ,true))
+    if (error = node_insert("CWD", cwd ,true))
         return error;
     
-    if (setenv("PWD",getenv("HOME"),1))
+    //The environment variable and shell variable representing the current path must mirror each other at all times.
+    //This is beacuse to change the shell variable, the program utilizes functions like chdir(), which changes the environment variable.
+    if (setenv("PWD",cwd,1)) 
         return errno;
+
+    if(error = push(cwd))
+        return error;
 
     //______________________________________________________________________
     
-    if (error = node_insert("HOME", getenv("HOME") ,true))
+    if (error = node_insert("HOME", cwd ,true)) //Note: cwd = getenv("HOME")
         return error;
     //______________________________________________________________________
 
@@ -422,82 +429,6 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
     
     return 0;
 }
-int node_insert(char* key, char* value, bool env)
-{
-    node* new_node;
-
-    if (key == NULL || value == NULL)
-        return NODE_ASSIGNMENT_ERROR;
-
-    if  (!((new_node = (node*) malloc(sizeof(node))) &&
-        ((new_node->key = (char*) malloc(strlen(key))) && 
-        (new_node->value = (char*) malloc(strlen(value))))))
-        return MEMORY_ERROR;
-
-
-    strcpy(new_node->key, key);
-    strcpy(new_node->value, value);
-    new_node->env = env;
-    new_node->next = head;
-    head = new_node;
-    head->prev= new_node;
-
-    vars_len++;
-    
-
-    return 0;
-
-}
-node* node_search(char* key)
-{
-    node* current_node;
-    
-
-    if ((current_node = head) == NULL)
-        return NULL;
-    
-    while (current_node != NULL && strcmp(current_node->key,key))
-        current_node = current_node->next;
-
-    return current_node;
-}
-int node_delete(char* key)
-{
-    node* current_node;
-    node* prev_node;
-
-    if (!(current_node = node_search(key)))
-        return NODE_NOT_FOUND_ERROR;
-
-    //If previous node is Null, then the node to delete is the first one
-
-    if (current_node->prev)
-        current_node->prev->next = current_node->next;
-    else
-        head = current_node->next;
-
-
-    vars_len--;
-    return 0;
-
-}
-int node_edit(char* key, char* value)
-{
-    node* current_node;
-
-    if (!(current_node = node_search(key)))
-        return NODE_NOT_FOUND_ERROR;
-    
-    current_node = (node*) realloc(current_node, strlen(value));
-    strcpy(current_node->value,value);
-
-    return 0;
-}
-void nodes_print()
-{
-    for (node* current_node = head; current_node != NULL; current_node = current_node->next)
-        printf("%s=%s\n",current_node->key, current_node->value);  
-}
 int assign_vars(char** tokens, int length, int i)
 {
 
@@ -506,7 +437,6 @@ int assign_vars(char** tokens, int length, int i)
     char key_value[2][TOKEN_SIZE];
     int j = 0;
     int current_token_len = strlen(tokens[i]);
-    int error;
 
     strcpy(current_token,tokens[i]);
 
@@ -554,7 +484,6 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
 {
     int i;
     int match = 1;
-    int error;
     for(i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
     
     if(match)//It is an external command
@@ -573,7 +502,6 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
 int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
 {
     //Note that the first element of args is NOT the name of the command, its the first argument
-    int error;
     switch (j)
     {
         case EXIT_CMD:
@@ -614,7 +542,16 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
         case CD_CMD:
         {
-            
+           //Check if arg_num is valid and change the environment variable
+           //The only reason chdir should fail is because the supplied argument was invalid. 
+            if (arg_num != 1 || chdir(args[0]))
+                return INVALID_ARGS_ERROR;          
+
+           //Update shell variable accordingly
+            if(error = node_edit("CWD",args[0]))
+                return error;
+
+            return 0;
         }
         case SHOWVAR_CMD:
         {   
@@ -639,11 +576,11 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
                 return INVALID_ARGS_ERROR;
 
             node* current_node;
-            if ((current_node = node_search(args[0])) == NULL)
+            if (!(current_node = node_search(args[0])))
                 return NODE_NOT_FOUND_ERROR;
 
             if (setenv(current_node->key,current_node->value,69))
-                return SYSTEM_CALL_ERROR;
+                return errno;
             
             return 0;
         }
@@ -656,24 +593,51 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
                 return error;
 
             if (unsetenv(args[0]))
-                return SYSTEM_CALL_ERROR;
+                return errno;
 
             return 0;
         }
         case SHOWENV_CMD:
         {
-        //  for (char** var = environ; *var; var++)
-        //         printf("%s\n",*var);
+            if (arg_num > 1)
+                return INVALID_ARGS_ERROR;
 
-        //     return 0;
+            if (!arg_num)
+            {
+                for (char** var = envp; *var; var++)
+                    printf("%s\n",*var);
+            }
+            else
+            {
+                char* var;
+                if (!(var = getenv(args[0])))
+                    return ENV_VARIABLE_NOT_FOUND_ERROR;
+
+                printf("%s=%s\n", args[0], var);
+            }
+
+            return 0;
         }
         case PUSHD_CMD:
         {
+            if (arg_num != 1)
+                return INVALID_ARGS_ERROR;
             
+            if (error = push(args[0]))
+                return error;
         }
         case POPD_CMD:
         {
+            if (arg_num != 0)
+                return INVALID_ARGS_ERROR;
+
+            char value[VALUE_SIZE];
+            if (error = pop(&value));
+                return error;
             
+            printf("%s was popped from the directory stack!",value);
+            
+            return 0;
         }
         case DIRS_CMD:
         {
@@ -701,6 +665,4 @@ int str_to_int(int* value, char* string)
     *value = (int) num;
     return 0;
 }
-
-
 

@@ -3,16 +3,16 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include "limits.h"
 #include "config.h"
-#include <errno.h>
 
 
 int tokens_len(char* string);
 int char_type(char* string, int j);
-char** tokens_get(char* input, int* length, int* error, tokenchar_pair** var_indices, int* var_indices_len);
+char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_indices_len);
 bool is_deref(char* string, int upper);
-int handle_error(int error);
+int handle_error();
 int tokens_free(char** tokens, int length);
 int var_indices_free(tokenchar_pair* var_indices);
 bool is_var(char* token);
