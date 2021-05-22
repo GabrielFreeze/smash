@@ -1,5 +1,6 @@
 #include "headers.h"
 #include "linkedlist.c"
+#include "stack.c"
 
 int tokens_len(char* string)
 {
@@ -267,36 +268,72 @@ int var_indices_free(tokenchar_pair* var_indices)
 }
 int init_vars(void)
 {
+    for (int i = 0; environ[i]; i++) // Set every enviroment variable as a shell variable, with the bool env set to true.
+    {
+        char var[VALUE_SIZE];
+        strcpy(var,environ[i]); //This is so the enviroment variables are not messed with by strtok.
+
+        char* key = strtok(var, "=");
+
+        printf("[%d] Insert [%s]->[%s]\n",i, key, getenv(key));
+
+        if (error = node_insert(key, getenv(key), true))
+            return error;
+
+    }
+
+    //Checking if PATH, USER and HOME were set
+
+    int uid = geteuid(); // Get effective user id
+    struct passwd *pass = getpwuid(uid); // Get password file entry structure
+
+    if (!node_search("PATH"))
+    {
+        if (error = node_insert("PATH","/bin",true))
+            return error;
+        if (setenv("PATH","/bin",1))
+            return ENV_VARIABLE_ASSIGNMENT_ERROR;
+    }
+    if (!node_search("HOME"))
+    {
+        if (error = node_insert("HOME",pass->pw_dir,true))
+            return error;
+        if (setenv("HOME",pass->pw_dir,1))
+            return ENV_VARIABLE_ASSIGNMENT_ERROR;
+    }
+    if (!node_search("USER"))
+    {
+        if (error = node_insert("USER",pass->pw_name,true))
+            return error;
+        if (setenv("USER",pass->pw_name,1))
+            return ENV_VARIABLE_ASSIGNMENT_ERROR;
+    }
 
     //______________________________________________________________________
     
-    if (error = node_insert("PROMPT", "init>" ,true))
+    if (error = node_insert("PROMPT", "init>" ,false))
         return error;
 
     //______________________________________________________________________
+
+    //Since the name for the current working directory must be called CWD,
+    //I'll replace PWD with CWD. This should make mirroring the 2 variables easier.
 
     char cwd[VALUE_SIZE];
     strcpy(cwd,getenv("HOME"));
 
-
-    if (error = node_insert("CWD", cwd ,true))
+    if (error = node_insert("CWD", cwd, true))
         return error;
     
-    //The environment variable and shell variable representing the current path must mirror each other at all times.
-    //This is beacuse to change the shell variable, the program utilizes functions like chdir(), which changes the environment variable.
-    if (setenv("PWD",cwd,1)) 
-        return errno;
+    node_delete("PWD"); //Will delete the node if it exists, otherwise won't.
 
-    if(error = push(cwd))
-        return error;
+    if (setenv("CWD",cwd,1)) //Setting the CWD to the home directory.
+        return ENV_VARIABLE_ASSIGNMENT_ERROR;
 
-    //______________________________________________________________________
-    
-    if (error = node_insert("HOME", cwd ,true)) //Note: cwd = getenv("HOME")
-        return error;
-    //______________________________________________________________________
+    if (unsetenv("PWD"))
+        return ENV_VARIABLE_ASSIGNMENT_ERROR;
 
-    if (error = node_insert("USER", getenv("USER") ,true))
+    if (error = push(cwd))
         return error;
 
     //______________________________________________________________________
@@ -309,20 +346,21 @@ int init_vars(void)
     if (error = node_insert("SHELL", shell ,true))
         return error;
     
+    if (setenv("SHELL",shell,1))
+        return ENV_VARIABLE_ASSIGNMENT_ERROR;
     //______________________________________________________________________
 
-    if (error = node_insert("TERMINAL", getenv("TERM") ,true))
+    
+    if (error = node_insert("TERMINAL", getenv("TERM"), false))
         return error;
 
     //______________________________________________________________________
 
-    if (error = node_insert("EXITCODE", "NONE" ,true))
+   
+    if (error = node_insert("EXITCODE", "NONE", false))
         return error;
 
-
-    if (error = node_insert("PATH", getenv("PATH") ,true))
-        return error;
-
+    printf("%d\n",vars_len);
     return 0;
 
 
@@ -454,8 +492,9 @@ int assign_vars(char** tokens, int length, int i)
     
     //If: The variable doesn't exist
     //Then: Create it and assign it the values given.
-    //Else(if it does exists): Change the value of the variable. 
-    if ((current_node = node_search(key_value[0])) == NULL)
+    //Else(if it does exists): Change the value of the variable.
+
+    if (!(current_node = node_search(key_value[0])))
     {
         if (error = node_insert(key_value[0], key_value[1], false))  
             return error;
@@ -464,6 +503,12 @@ int assign_vars(char** tokens, int length, int i)
     {
         if (error = node_edit(key_value[0], key_value[1]))
             return error;
+        
+        //Update it's enviroment variable counterpart
+        if (current_node->env && setenv(current_node->key, current_node->value, 1)) 
+            return ENV_VARIABLE_ASSIGNMENT_ERROR;
+        
+
     }
     
     return 0;
@@ -604,7 +649,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
 
             if (!arg_num)
             {
-                for (char** var = envp; *var; var++)
+                for (char** var = environ; *var; var++)
                     printf("%s\n",*var);
             }
             else
@@ -628,16 +673,16 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
         case POPD_CMD:
         {
-            if (arg_num != 0)
-                return INVALID_ARGS_ERROR;
+            // if (arg_num != 0)
+            //     return INVALID_ARGS_ERROR;
 
-            char value[VALUE_SIZE];
-            if (error = pop(&value));
-                return error;
+            // char value[VALUE_SIZE];
+            // if (error = pop(&value)); //errorororoor
+            //     return error;
             
-            printf("%s was popped from the directory stack!",value);
+            // printf("%s was popped from the directory stack!",value);
             
-            return 0;
+            // return 0;
         }
         case DIRS_CMD:
         {
@@ -665,4 +710,3 @@ int str_to_int(int* value, char* string)
     *value = (int) num;
     return 0;
 }
-

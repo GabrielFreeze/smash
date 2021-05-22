@@ -4,6 +4,8 @@
         "config.h": "c",
         "string.h": "c",
         "stdio.h": "c",
-        "headers.h": "c"
+        "headers.h": "c",
+        "stdlib.h": "c",
+        "stdbool.h": "c"
     }
 }

@@ -17,9 +17,19 @@ int node_insert(char* key, char* value, bool env)
     strcpy(new_node->key, key);
     strcpy(new_node->value, value);
     new_node->env = env;
+
+    if (!vars_len)
+    {
+        tail = new_node;
+    }
+    else
+    {
+        head->prev = new_node;
+    }
+
+
     new_node->next = head;
     head = new_node;
-    head->prev= new_node;
 
     vars_len++;
     
@@ -32,11 +42,14 @@ node* node_search(char* key)
     node* current_node;
     
 
-    if ((current_node = head) == NULL)
+    if (!(current_node = head))
         return NULL;
-    
-    while (current_node != NULL && strcmp(current_node->key,key))
+    int i = 0;
+    while (current_node && strcmp(current_node->key,key))
         current_node = current_node->next;
+        // printf("[%d:%d] %s=%s\n",i++,vars_len,current_node->next->key,key);
+
+    
 
 
     return current_node;
@@ -74,8 +87,10 @@ int node_edit(char* key, char* value)
     return 0;
 }
 void nodes_print(){
+    int i = 0;
     for (node* current_node = head; current_node != NULL; current_node = current_node->next)
-        printf("%s=%s\n",current_node->key, current_node->value);  
+        printf("[%d] %s=%s\n",i++,current_node->key, current_node->value);  
+    
 }
 
 

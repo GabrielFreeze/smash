@@ -1,7 +1,7 @@
 //_______________________________Includes______________________________________
 #include "includes/linenoise-master/linenoise.c"
 #include "includes/methods.c"
-#include "includes/stack.c"
+
 
 
 //__________________________________Variables__________________________________
@@ -14,9 +14,8 @@
 
 */
 
-int main(int argc, char** argv, char** envp_)
+int main(int argc, char** argv)
 {
-    envp = envp_;
     char* input;
     int token_num;
     char** tokens = NULL;
@@ -31,7 +30,7 @@ int main(int argc, char** argv, char** envp_)
         exit(0);
     }
     
-    char* prompt = node_search("PROMPT")->value;
+    char* prompt = "init>";
 
     while (((input = linenoise(prompt)) != NULL))
     {   

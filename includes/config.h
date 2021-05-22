@@ -1,7 +1,7 @@
 #pragma once
 #define TOKEN_SIZE 5000
 #define KEY_SIZE 5000
-#define VALUE_SIZE 5000
+#define VALUE_SIZE 32767
 #define VARIABLE_LENGTH 100
 #define INIT_VARS_LEN 9
 
@@ -26,23 +26,19 @@
 #define MEMORY_ERROR 51
 #define BUFFER_OVERFLOW_ERROR 52
 #define PARSE_ERROR 53
-
 #define VARIABLE_DECLARATION_ERROR 54
 #define VARIABLE_EXPANSION_ERROR 55
 #define VARIABLE_ASSIGNMENT_ERROR 56
 #define VARINDICES_MEMORY_ERROR 60
-
 #define NODE_NOT_FOUND_ERROR 57
 #define NODE_ASSIGNMENT_ERROR 58
-
 #define STACK_FULL_ERROR 64
 #define STACK_EMPTY_ERROR 65
-
-
 #define TOKENS_MEMORY_ERROR 59
 #define INVALID_FUNCTION_USE_ERROR 61 //Intended if programmers (I) call a function with incorrect values
 #define INVALID_ARGS_ERROR 62
 #define ENV_VARIABLE_NOT_FOUND_ERROR 63
+#define ENV_VARIABLE_ASSIGNMENT_ERROR 66
 
 
 #define EXIT_CMD 0
@@ -84,3 +80,5 @@ int internal_commands_len = 11;
 int error = 0;
 
 node* head;
+node* tail;
+extern char **environ;

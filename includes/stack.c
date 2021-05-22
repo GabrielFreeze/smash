@@ -18,7 +18,7 @@ int push(char* value)
     if (is_full())
         return STACK_FULL_ERROR;
     
-    if(!(stack[++top] = (char) malloc(strlen(value))))
+    if(!(stack[++top] = (char*) malloc(strlen(value))))
         return MEMORY_ERROR;
 
     strcpy(stack[top],value);
