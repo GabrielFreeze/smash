@@ -95,8 +95,7 @@ bool is_deref(char* string, int upper)
 }
 int handle_error()
 {
-    if (error == 0)
-        return 0;
+    // printf("%d\n",error);
     if (error == MEMORY_ERROR)
         fprintf(stderr, MEMORY_ERROR_MSG) ;
 
@@ -271,12 +270,9 @@ int init_vars(void)
     for (int i = 0; environ[i]; i++) // Set every enviroment variable as a shell variable, with the bool env set to true.
     {
         char var[VALUE_SIZE];
-        strcpy(var,environ[i]); //This is so the enviroment variables are not messed with by strtok.
+        strcpy(var,environ[i]);
 
         char* key = strtok(var, "=");
-
-        printf("[%d] Insert [%s]->[%s]\n",i, key, getenv(key));
-
         if (error = node_insert(key, getenv(key), true))
             return error;
 
@@ -325,7 +321,12 @@ int init_vars(void)
     if (error = node_insert("CWD", cwd, true))
         return error;
     
-    node_delete("PWD"); //Will delete the node if it exists, otherwise won't.
+
+    //Will delete the node if it exists, otherwise won't.
+    node* current_node;
+    if (current_node = node_search("PWD"))
+        node_delete(current_node); 
+    
 
     if (setenv("CWD",cwd,1)) //Setting the CWD to the home directory.
         return ENV_VARIABLE_ASSIGNMENT_ERROR;
@@ -333,16 +334,16 @@ int init_vars(void)
     if (unsetenv("PWD"))
         return ENV_VARIABLE_ASSIGNMENT_ERROR;
 
-    if (error = push(cwd))
+    if (error = push(cwd, strlen(cwd)))
         return error;
 
     //______________________________________________________________________
 
-    char shell[VALUE_SIZE];
+    char shell[BUFSIZE];
 
-    if(readlink("/proc/self/exe", shell, VALUE_SIZE) == -1)
+    if(readlink("/proc/self/exe", shell, BUFSIZE) == -1)
         return NODE_ASSIGNMENT_ERROR;
-    
+        
     if (error = node_insert("SHELL", shell ,true))
         return error;
     
@@ -634,8 +635,11 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             if (arg_num != 1)
                 return INVALID_ARGS_ERROR;
 
-            if (error = node_delete(args[0]))
-                return error;
+            node* current_node;
+            if (current_node = node_search(args[0]))
+                node_delete(current_node);
+            else
+                return NODE_NOT_FOUND_ERROR;
 
             if (unsetenv(args[0]))
                 return errno;
@@ -665,28 +669,31 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
         case PUSHD_CMD:
         {
-            if (arg_num != 1)
-                return INVALID_ARGS_ERROR;
+            // if (arg_num != 1)
+            //     return INVALID_ARGS_ERROR;
             
-            if (error = push(args[0]))
-                return error;
+            // if (error = push(args[0],strlen(args[0])))
+            //     return error;
         }
         case POPD_CMD:
         {
-            // if (arg_num != 0)
-            //     return INVALID_ARGS_ERROR;
+            printf("1");
+            char* a = NULL;
+            if (error = pop(&a))
+                return error;
 
-            // char value[VALUE_SIZE];
-            // if (error = pop(&value)); //errorororoor
-            //     return error;
-            
-            // printf("%s was popped from the directory stack!",value);
-            
-            // return 0;
+            printf("%s was popped from the stack\n",a);
+            return 0;
         }
         case DIRS_CMD:
         {
+            if (arg_num)
+                return INVALID_ARGS_ERROR;
             
+            if (error = print_stack())
+                return error;
+            
+            return 0;
         }
         case SOURCE_CMD:
         {

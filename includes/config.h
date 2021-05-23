@@ -1,9 +1,8 @@
 #pragma once
-#define TOKEN_SIZE 5000
-#define KEY_SIZE 5000
-#define VALUE_SIZE 32767
-#define VARIABLE_LENGTH 100
-#define INIT_VARS_LEN 9
+#define TOKEN_SIZE 2000
+#define KEY_SIZE 2000
+#define VALUE_SIZE 2000
+#define BUFSIZE 256
 
 #define MEMORY_ERROR_MSG "A problem occured while dynamically allocating memory\n"
 #define BUFFER_ERROR_MSG "Did a token exceed its maximum buffer size of %d characters?\n"

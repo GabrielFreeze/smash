@@ -4,13 +4,20 @@ int vars_len = 0;
 int node_insert(char* key, char* value, bool env)
 {
     node* new_node;
+    node* current_node;
 
     if (key == NULL || value == NULL)
         return NODE_ASSIGNMENT_ERROR;
 
+    //If there already exists a node with that key, remove it.
+    if (current_node = node_search(key))
+        node_delete(current_node);
+    
+
+
     if  (!((new_node = (node*) malloc(sizeof(node))) &&
-        ((new_node->key = (char*) malloc(strlen(key))) && 
-        (new_node->value = (char*) malloc(strlen(value))))))
+        ((new_node->key = (char*) malloc(strlen(key)+1)) && 
+        (new_node->value = (char*) malloc(strlen(value)+1)))))
         return MEMORY_ERROR;
 
 
@@ -19,13 +26,10 @@ int node_insert(char* key, char* value, bool env)
     new_node->env = env;
 
     if (!vars_len)
-    {
         tail = new_node;
-    }
+    
     else
-    {
         head->prev = new_node;
-    }
 
 
     new_node->next = head;
@@ -40,28 +44,17 @@ int node_insert(char* key, char* value, bool env)
 node* node_search(char* key)
 {
     node* current_node;
-    
 
     if (!(current_node = head))
         return NULL;
-    int i = 0;
+
     while (current_node && strcmp(current_node->key,key))
         current_node = current_node->next;
-        // printf("[%d:%d] %s=%s\n",i++,vars_len,current_node->next->key,key);
-
-    
-
 
     return current_node;
 }
-int node_delete(char* key)
+int node_delete(node* current_node)
 {
-    node* current_node;
-    node* prev_node;
-
-    if (!(current_node = node_search(key)))
-        return NODE_NOT_FOUND_ERROR;
-
     //If previous node is Null, then the node to delete is the first one
 
     if (current_node->prev)
@@ -71,6 +64,7 @@ int node_delete(char* key)
 
     free(current_node);
     vars_len--;
+
     return 0;
 
 }
@@ -87,10 +81,8 @@ int node_edit(char* key, char* value)
     return 0;
 }
 void nodes_print(){
-    int i = 0;
     for (node* current_node = head; current_node != NULL; current_node = current_node->next)
-        printf("[%d] %s=%s\n",i++,current_node->key, current_node->value);  
-    
+        printf("%s=%s\n",current_node->key, current_node->value);  
 }
 
 
