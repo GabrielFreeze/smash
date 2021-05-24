@@ -312,29 +312,27 @@ int init_vars(void)
 
     //______________________________________________________________________
 
-    //Since the name for the current working directory must be called CWD,
-    //I'll replace PWD with CWD. This should make mirroring the 2 variables easier.
-
+    //Any changes to PWD (env), should be mirrored to CWD (env), which is then mirrored to CWD (shell).
     char cwd[VALUE_SIZE];
     strcpy(cwd,getenv("HOME"));
 
-    if (error = node_insert("CWD", cwd, true))
+    if (error = node_insert("CWD", cwd, true)) //Create shell variable CWD.
         return error;
     
+    if (setenv("CWD",cwd,1)) //Mirror CWD(shell) with CWD(env)
+        return ENV_VARIABLE_ASSIGNMENT_ERROR;
 
-    //Will delete the node if it exists, otherwise won't.
+
+    if (setenv("PWD", cwd, true)) //Create PWD/Edit PWD(env), and mirror it with CWD(shell) and CWD(env)
+        return ENV_VARIABLE_ASSIGNMENT_ERROR;
+
+    //Will delete the node if it exists since we will be working with CWD(shell) not PWD(shell)
     node* current_node;
     if (current_node = node_search("PWD"))
         node_delete(current_node); 
     
 
-    if (setenv("CWD",cwd,1)) //Setting the CWD to the home directory.
-        return ENV_VARIABLE_ASSIGNMENT_ERROR;
-
-    if (unsetenv("PWD"))
-        return ENV_VARIABLE_ASSIGNMENT_ERROR;
-
-    if (error = push(cwd, strlen(cwd)))
+    if (error = push(cwd)) //Pushing cwd onto the directory stack
         return error;
 
     //______________________________________________________________________
@@ -491,26 +489,33 @@ int assign_vars(char** tokens, int length, int i)
         return VARIABLE_ASSIGNMENT_ERROR;
 
     
-    //If: The variable doesn't exist
+    //If: The node doesn't exist
     //Then: Create it and assign it the values given.
-    //Else(if it does exists): Change the value of the variable.
+    //Else(if it does exists): edit the node with the new value and...
+    // if the variable edited was CWD, update PWD(env) with the same value
+    //
 
     if (!(current_node = node_search(key_value[0])))
     {
-        if (error = node_insert(key_value[0], key_value[1], false))  
+        if (error = node_insert(key_value[0], key_value[1], false))
             return error;
     }
     else
     {
-        if (error = node_edit(key_value[0], key_value[1]))
+        if (error = node_edit(current_node, key_value[1]))
             return error;
         
-        //Update it's enviroment variable counterpart
-        if (current_node->env && setenv(current_node->key, current_node->value, 1)) 
-            return ENV_VARIABLE_ASSIGNMENT_ERROR;
-        
-
+        if (!strcmp(current_node->key,"CWD") && setenv("PWD",getenv("CWD"),1))
+            return ENV_VARIABLE_NOT_FOUND_ERROR;
     }
+
+
+
+
+    
+    //PWD(env) should mirror CWD(env) which mirrors the shell variable $CWD
+    
+    
     
     return 0;
 
@@ -590,13 +595,22 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         {
            //Check if arg_num is valid and change the environment variable
            //The only reason chdir should fail is because the supplied argument was invalid. 
-            if (arg_num != 1 || chdir(args[0]))
+            
+            if (arg_num != 1 && chdir(args[0])) 
                 return INVALID_ARGS_ERROR;          
 
-           //Update shell variable accordingly
-            if(error = node_edit("CWD",args[0]))
+            //PWD(env) was updated
+
+            node* current_node;
+            if (!(current_node = node_search("CWD")))
+                return CWD_NOT_FOUND;
+
+            if (error = node_edit(current_node, getenv("PWD")))//Will mirror CWD(shell) and CWD(env) to the newly updated value in PWD(env)
                 return error;
 
+            //Update directory stack
+            if (error = pushd(getenv("PWD")))
+                return error;
             return 0;
         }
         case SHOWVAR_CMD:
@@ -625,8 +639,8 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             if (!(current_node = node_search(args[0])))
                 return NODE_NOT_FOUND_ERROR;
 
-            if (setenv(current_node->key,current_node->value,69))
-                return errno;
+            if(error = node_export(current_node))
+                return error;
             
             return 0;
         }
@@ -642,7 +656,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
                 return NODE_NOT_FOUND_ERROR;
 
             if (unsetenv(args[0]))
-                return errno;
+                return ENV_VARIABLE_NOT_FOUND_ERROR;
 
             return 0;
         }
@@ -669,20 +683,29 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
         case PUSHD_CMD:
         {
-            // if (arg_num != 1)
-            //     return INVALID_ARGS_ERROR;
-            
-            // if (error = push(args[0],strlen(args[0])))
-            //     return error;
+            if (arg_num != 1)
+                return INVALID_ARGS_ERROR;
+
+            struct stat sb;
+
+            //Checks if argument is a existing directory
+            if (stat(args[0], &sb) || !S_ISDIR(sb.st_mode))
+                return NOT_A_DIR;
+
+            if (error = push(args[0]))
+                return error;
         }
         case POPD_CMD:
         {
-            printf("1");
-            char* a = NULL;
-            if (error = pop(&a))
+            if (arg_num)
+                return INVALID_ARGS_ERROR;
+
+            char* popped_value;
+
+            if (error = pop(&popped_value))
                 return error;
 
-            printf("%s was popped from the stack\n",a);
+            printf("%s\n",popped_value);
             return 0;
         }
         case DIRS_CMD:
@@ -697,7 +720,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
         case SOURCE_CMD:
         {
-            
+           // 
         }
       
         default:

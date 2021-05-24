@@ -13,12 +13,12 @@ bool is_full()
 {
     return top+1 == STACK_SIZE;
 }
-int push(char* value, int length)
+int push(char* value)
 {
     if (is_full())
         return STACK_FULL_ERROR;
     
-    if(!(stack[++top] = (char*) malloc(length+1)))
+    if(!(stack[++top] = (char*) malloc(strlen(value)+1)))
         return MEMORY_ERROR;
 
     strcpy(stack[top],value);
@@ -27,31 +27,24 @@ int push(char* value, int length)
 }   
 int pop(char** value)
 {
-    if (is_empty())
-        return STACK_EMPTY_ERROR;
-    
-    char* value2;
-
-   if(!(value2 = (char*) malloc(strlen(stack[top])+1)))
-        return MEMORY_ERROR;
-
-    strcpy(value2,stack[top]);
+    peek(value);
     free(stack[top--]);
-    // printf("%s\n",value2);
-    *value = value2;
 
     return 0;
 }
 int peek(char** value)
 {
-    if(is_empty())
+    if (is_empty())
         return STACK_EMPTY_ERROR;
 
-    strcpy(*value, stack[top]);
+    char* value2;
+    if(!(value2 = (char*) malloc(strlen(stack[top])+1)))
+        return MEMORY_ERROR;
 
+    strcpy(value2,stack[top]);
+    *value = value2;
     return 0;
 }
-
 int print_stack()
 {
     if (is_empty())

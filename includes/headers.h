@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/stat.h>
 #include <pwd.h>
 #include "limits.h"
 #include "config.h"
@@ -23,6 +24,8 @@ int expand_vars(char** tokens, tokenchar_pair* var_indices, int var_indices_len,
 int node_insert(char* key, char* value, bool env);
 int node_delete(node* current_node);
 node* node_search(char* key);
+int node_edit(node* current_node, char* value);
+int node_export(node* current_node);
 int assign_vars(char** tokens, int length, int i);
 int contains_char(char* string, char a);
 int tokens_parse(char* tokens[TOKEN_SIZE], int token_num);
@@ -31,6 +34,6 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j);
 int print_stack();
 int peek(char** value);
 int pop(char** value);
-int push(char* value, int length);
+int push(char* value);
 bool is_full();
 bool is_empty();

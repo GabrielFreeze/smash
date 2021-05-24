@@ -6,14 +6,9 @@ int node_insert(char* key, char* value, bool env)
     node* new_node;
     node* current_node;
 
-    if (key == NULL || value == NULL)
-        return NODE_ASSIGNMENT_ERROR;
-
     //If there already exists a node with that key, remove it.
     if (current_node = node_search(key))
         node_delete(current_node);
-    
-
 
     if  (!((new_node = (node*) malloc(sizeof(node))) &&
         ((new_node->key = (char*) malloc(strlen(key)+1)) && 
@@ -56,11 +51,19 @@ node* node_search(char* key)
 int node_delete(node* current_node)
 {
     //If previous node is Null, then the node to delete is the first one
+    if (!current_node)
+        return NODE_NOT_FOUND_ERROR;
 
     if (current_node->prev)
+    {
         current_node->prev->next = current_node->next;
+        current_node->next->prev = current_node->prev;
+    }
     else
+    {
         head = current_node->next;
+        head->prev = NULL;
+    }
 
     free(current_node);
     vars_len--;
@@ -68,21 +71,34 @@ int node_delete(node* current_node)
     return 0;
 
 }
-int node_edit(char* key, char* value)
+int node_edit(node* current_node, char* value)
 {
-    node* current_node;
-
-    if (!(current_node = node_search(key)))
+    if (!current_node)
         return NODE_NOT_FOUND_ERROR;
     
+    if (!value)
+        return NULL_GIVEN;
+
     current_node = (node*) realloc(current_node, strlen(value));
     strcpy(current_node->value,value);
+
+    //Update the enviroment variable representing this shell variable.
+    if (current_node->env && setenv(current_node->key,value,1))
+        return ENV_VARIABLE_NOT_FOUND_ERROR;
 
     return 0;
 }
 void nodes_print(){
     for (node* current_node = head; current_node != NULL; current_node = current_node->next)
         printf("%s=%s\n",current_node->key, current_node->value);  
+}
+int node_export(node* current_node)
+{
+    if (!current_node)
+        return NODE_NOT_FOUND_ERROR;
+    
+    current_node->env = true;
+    return 0;
 }
 
 

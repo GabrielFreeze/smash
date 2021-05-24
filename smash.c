@@ -51,7 +51,7 @@ int main(int argc, char** argv)
             
             int i,j;
             //Loop through all tokens, performing variable expansion and assignment per token.
-            for (i = 0, j = 0; i < token_num; i++)  
+            for (i = 0, j = 0; i < token_num; i++)
             {
                 //If variable expansion has to be performed on the token at i
                 if ((j < var_indices_len) && (i == var_indices[j].token_index)) 
