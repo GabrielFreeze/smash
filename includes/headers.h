@@ -36,4 +36,3 @@ int peek(char** value);
 int pop(char** value);
 int push(char* value);
 bool is_full();
-bool is_empty();

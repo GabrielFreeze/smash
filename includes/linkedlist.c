@@ -54,16 +54,16 @@ int node_delete(node* current_node)
     if (!current_node)
         return NODE_NOT_FOUND_ERROR;
 
-    if (current_node->prev)
-    {
-        current_node->prev->next = current_node->next;
-        current_node->next->prev = current_node->prev;
-    }
-    else
-    {
-        head = current_node->next;
-        head->prev = NULL;
-    }
+
+    if (current_node == head)
+      head = head->next;
+   else
+      current_node->prev->next = current_node->next; //The previous node will skip the current_node and point to the one after it.
+
+   if (current_node == tail)
+      tail = current_node->prev;
+   else
+      current_node->next->prev = current_node->prev; //The next node will skip the current_node and point to the one before it.
 
     free(current_node);
     vars_len--;

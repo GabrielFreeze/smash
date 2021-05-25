@@ -40,7 +40,8 @@
 #define ENV_VARIABLE_ASSIGNMENT_ERROR 66
 #define CWD_NOT_FOUND 67
 #define NULL_GIVEN 68
-#define NOT_A_DIR
+#define NOT_A_DIR 69
+#define POP_ERROR 70
 
 #define EXIT_CMD 0
 #define ECHO_CMD 1

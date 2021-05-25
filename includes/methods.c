@@ -322,7 +322,6 @@ int init_vars(void)
     if (setenv("CWD",cwd,1)) //Mirror CWD(shell) with CWD(env)
         return ENV_VARIABLE_ASSIGNMENT_ERROR;
 
-
     if (setenv("PWD", cwd, true)) //Create PWD/Edit PWD(env), and mirror it with CWD(shell) and CWD(env)
         return ENV_VARIABLE_ASSIGNMENT_ERROR;
 
@@ -334,6 +333,8 @@ int init_vars(void)
 
     if (error = push(cwd)) //Pushing cwd onto the directory stack
         return error;
+
+    chdir(cwd);
 
     //______________________________________________________________________
 
@@ -595,21 +596,10 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         {
            //Check if arg_num is valid and change the environment variable
            //The only reason chdir should fail is because the supplied argument was invalid. 
-            
-            if (arg_num != 1 && chdir(args[0])) 
-                return INVALID_ARGS_ERROR;          
+            if (arg_num != 1)
+                return INVALID_ARGS_ERROR;
 
-            //PWD(env) was updated
-
-            node* current_node;
-            if (!(current_node = node_search("CWD")))
-                return CWD_NOT_FOUND;
-
-            if (error = node_edit(current_node, getenv("PWD")))//Will mirror CWD(shell) and CWD(env) to the newly updated value in PWD(env)
-                return error;
-
-            //Update directory stack
-            if (error = pushd(getenv("PWD")))
+            if (error = change_directory(args[0]))
                 return error;
             return 0;
         }
@@ -691,9 +681,17 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             //Checks if argument is a existing directory
             if (stat(args[0], &sb) || !S_ISDIR(sb.st_mode))
                 return NOT_A_DIR;
-
+            
             if (error = push(args[0]))
                 return error;
+
+            if (error = change_directory(args[0]))
+                return error;
+
+            if (error = print_stack()) //Prints the stack to view the new changes
+                return error;
+
+            return 0;
         }
         case POPD_CMD:
         {
@@ -705,7 +703,9 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             if (error = pop(&popped_value))
                 return error;
 
-            printf("%s\n",popped_value);
+            if (error = print_stack()) //Prints the stack to view the new changes
+                return error;
+
             return 0;
         }
         case DIRS_CMD:
