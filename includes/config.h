@@ -42,6 +42,7 @@
 #define NULL_GIVEN 68
 #define NOT_A_DIR 69
 #define POP_ERROR 70
+#define SYSTEM_CALL_ERROR 71
 
 #define EXIT_CMD 0
 #define ECHO_CMD 1
@@ -84,4 +85,7 @@ int error = 0;
 FILE* fp;
 node* head;
 node* tail;
+bool read_from_file = false;
+
+
 extern char **environ;

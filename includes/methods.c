@@ -118,6 +118,9 @@ int handle_error()
 
     if (error == NODE_ASSIGNMENT_ERROR)
         fprintf(stderr, NODE_ASSIGNMENT_MSG);
+    
+    if (error == SYSTEM_CALL_ERROR)
+        perror("Error:");
 
     return 0;
     
@@ -722,26 +725,19 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             if (arg_num != 1)
                 return INVALID_ARGS_ERROR;
 
-            FILE* fptr;
-            char filename[BUFSIZ];
+            if (!(fp = fopen(args[0],"r")))
+                return SYSTEM_CALL_ERROR;
+            
+            read_from_file = true;
+            // char line[BUFSIZ];
 
-            fptr = fopen("note.txt","r");
+            // while((fgets(line,BUFSIZ,fp))) { //For every line
 
-            if (fptr == NULL)
-            {
-                perror("Error");
-                return 0;
-            }
+            //     printf("%s\n",line);
 
-            char line[BUFSIZ];
+            // }
 
-            while((fgets(line,BUFSIZ,fptr))) { //For every line
-
-                printf("%s\n",line);
-
-            }
-
-            fclose(fptr);
+            // fclose(fp);
     
             return 0;
         }
@@ -762,4 +758,27 @@ int str_to_int(int* value, char* string)
 
     *value = (int) num;
     return 0;
+}
+char* get_input_from_file(FILE* fp)
+{
+    char line [BUFSIZE];
+
+    if (!(fgets(line,BUFSIZ,fp)))
+        return NULL;
+
+    int a = strlen(line);
+
+    char* input;
+    if (!(input = (char*) malloc(a-1)))
+        return NULL;
+    
+    line[a-2] = '\0';
+
+    strcpy(input,line);
+    printf("%s",input);
+    printf("okay");
+    
+    return 0;
+    //Change the newline character with a null terminator
+
 }

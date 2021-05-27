@@ -39,21 +39,31 @@ int main(int argc, char** argv)
     //  let input = fgets()
     //else
     //  let input 
-    while (input = linenoise(prompt))
+    while (1)
     {   
+        // while (input = linenoise(prompt))
 
-        // if (fp)
-        // {
-        //     if (fp == EOF)
-        //         close(fp);
-        //     else
-        //         input = fgets(line,BUFSIZ,fp);
-        // }
-        // else
-        //     input = linenoise(prompt);
+        if (read_from_file)
+        {
+            get_input_from_file(fp);
+            return 0;
+            // if (!(fgets(&input,BUFSIZ,fp)))
+            // {
+            //     read_from_file = false;
+            //     input = linenoise(prompt);
+            // }
+        }
+        else
+            input = linenoise(prompt);
 
         
+        if (!input)
+        {
+            error = NULL_GIVEN;
+            goto end;
+        }
 
+        
 
         //If "reading from file"
         //  if (fp is EOF)
