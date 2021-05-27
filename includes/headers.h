@@ -37,3 +37,4 @@ int pop(char** value);
 int push(char* value);
 bool is_full();
 int change_directory(char* value);
+char* get_input_from_file(FILE* fp);

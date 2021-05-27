@@ -20,6 +20,9 @@ int tokens_len(char* string)
 
         if (type == QUOTE && prev_type == QUOTE)
             return 0;
+        
+        if (prev_type == VARIABLE && type != NORMAL && type != QUOTE)
+            return 0;
 
         if (!in_quotes && type == META && (prev_type == NORMAL || prev_type == QUOTE))
             ++count;
@@ -169,13 +172,14 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
         }
 
         //Eg: $ followed by a META, or $""
-        if (prev_type == VARIABLE && type != NORMAL)
+        if (prev_type == VARIABLE && type != NORMAL && type != QUOTE)
         {
             error = VARIABLE_DECLARATION_ERROR;
             return tokens;
         }
         
         //Lets store the index to the variable for later use (when we perform expansion)
+
         if (type == VARIABLE)
         {
             var_indices2[var_index].token_index = index;
@@ -248,7 +252,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
 }
 int tokens_free(char** tokens, int length)
 {
-    if (tokens == NULL)
+    if (!tokens)
         return 0;
 
     for (int i = 0; i < length; i++)
@@ -260,7 +264,7 @@ int tokens_free(char** tokens, int length)
 }
 int var_indices_free(tokenchar_pair* var_indices)
 {
-    if (var_indices == NULL)
+    if (!var_indices)
         return 0;
     
     free(var_indices);
@@ -729,15 +733,6 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
                 return SYSTEM_CALL_ERROR;
             
             read_from_file = true;
-            // char line[BUFSIZ];
-
-            // while((fgets(line,BUFSIZ,fp))) { //For every line
-
-            //     printf("%s\n",line);
-
-            // }
-
-            // fclose(fp);
     
             return 0;
         }
@@ -762,23 +757,25 @@ int str_to_int(int* value, char* string)
 char* get_input_from_file(FILE* fp)
 {
     char line [BUFSIZE];
+    error = 0;
 
     if (!(fgets(line,BUFSIZ,fp)))
         return NULL;
 
-    int a = strlen(line);
+    int length = strlen(line);
 
     char* input;
-    if (!(input = (char*) malloc(a-1)))
+    if (!(input = (char*) malloc(length-1)))
+    {
+        error = MEMORY_ERROR;
         return NULL;
+    }
     
-    line[a-2] = '\0';
-
-    strcpy(input,line);
-    printf("%s",input);
-    printf("okay");
-    
-    return 0;
     //Change the newline character with a null terminator
+    line[length-2] = '\0';
+    strcpy(input,line);
+
+
+    return input;
 
 }

@@ -45,13 +45,11 @@ int main(int argc, char** argv)
 
         if (read_from_file)
         {
-            get_input_from_file(fp);
-            return 0;
-            // if (!(fgets(&input,BUFSIZ,fp)))
-            // {
-            //     read_from_file = false;
-            //     input = linenoise(prompt);
-            // }
+            if(!(input = get_input_from_file(fp)))
+            {
+                read_from_file = false;
+                input = linenoise(prompt);
+            }
         }
         else
             input = linenoise(prompt);
@@ -63,25 +61,14 @@ int main(int argc, char** argv)
             goto end;
         }
 
-        
-
-        //If "reading from file"
-        //  if (fp is EOF)
-        //      close(fp)
-        //  else
-        //      input = fgets(fp)
-        //      
-        //else
-        //  input = linenoise(prompt)
-
-        // if input == NULL:
-        //      raise error or some bullshit idk
         interpret_vars_assign = false;
         if (input[0] != '\0' && input[0] != '/')
         {
-            
-            if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
-                goto end;    
+            tokens = NULL;
+            var_indices = NULL;
+            tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len);
+            if (!(tokens))
+                goto end;
                 
             //If the first argument contains an =, then it means the user is doing variable assignment
             //...and the tokens should not be interpreted as [cmd arg0 arg1 ...], but just as a series of variable assignments.
@@ -101,8 +88,7 @@ int main(int argc, char** argv)
 
                 //Looks for any '=' within the token and assigns accordingly.
                 if ((interpret_vars_assign) && (error = assign_vars(tokens, token_num, i)))
-                    goto end;
-                
+                    goto end;         
                     
             }
 
