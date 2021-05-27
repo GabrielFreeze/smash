@@ -33,10 +33,39 @@ int main(int argc, char** argv)
     }
     
     char* prompt = "init>";
+    char line[BUFSIZE];
 
-    while (((input = linenoise(prompt)) != NULL))
+    //if "reading from file"
+    //  let input = fgets()
+    //else
+    //  let input 
+    while (input = linenoise(prompt))
     {   
 
+        // if (fp)
+        // {
+        //     if (fp == EOF)
+        //         close(fp);
+        //     else
+        //         input = fgets(line,BUFSIZ,fp);
+        // }
+        // else
+        //     input = linenoise(prompt);
+
+        
+
+
+        //If "reading from file"
+        //  if (fp is EOF)
+        //      close(fp)
+        //  else
+        //      input = fgets(fp)
+        //      
+        //else
+        //  input = linenoise(prompt)
+
+        // if input == NULL:
+        //      raise error or some bullshit idk
         interpret_vars_assign = false;
         if (input[0] != '\0' && input[0] != '/')
         {

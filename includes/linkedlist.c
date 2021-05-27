@@ -98,6 +98,10 @@ int node_export(node* current_node)
         return NODE_NOT_FOUND_ERROR;
     
     current_node->env = true;
+
+    if (setenv(current_node->key,current_node->value,1))
+        return ENV_VARIABLE_ASSIGNMENT_ERROR;
+
     return 0;
 }
 

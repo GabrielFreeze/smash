@@ -1,4 +1,3 @@
 cmake_minimum_required(VERSION 3.15)
 project(smash C)
 add_executable(smash smash.c)
-add_executable(test test.c)

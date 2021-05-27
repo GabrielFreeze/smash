@@ -95,7 +95,6 @@ bool is_deref(char* string, int upper)
 }
 int handle_error()
 {
-    // printf("%d\n",error);
     if (error == MEMORY_ERROR)
         fprintf(stderr, MEMORY_ERROR_MSG) ;
 
@@ -682,13 +681,12 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             if (stat(args[0], &sb) || !S_ISDIR(sb.st_mode))
                 return NOT_A_DIR;
             
+            //Pushing directory into stack and changing current working directory to new value
             if (error = push(args[0]))
                 return error;
-
-            if (error = change_directory(args[0]))
-                return error;
-
-            if (error = print_stack()) //Prints the stack to view the new changes
+            
+            //Prints the stack to view the new changes
+            if (error = print_stack()) 
                 return error;
 
             return 0;
@@ -700,6 +698,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
 
             char* popped_value;
 
+            //Pops the value from the stack and updates current working directory.
             if (error = pop(&popped_value))
                 return error;
 
@@ -720,7 +719,31 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
         case SOURCE_CMD:
         {
-           // 
+            if (arg_num != 1)
+                return INVALID_ARGS_ERROR;
+
+            FILE* fptr;
+            char filename[BUFSIZ];
+
+            fptr = fopen("note.txt","r");
+
+            if (fptr == NULL)
+            {
+                perror("Error");
+                return 0;
+            }
+
+            char line[BUFSIZ];
+
+            while((fgets(line,BUFSIZ,fptr))) { //For every line
+
+                printf("%s\n",line);
+
+            }
+
+            fclose(fptr);
+    
+            return 0;
         }
       
         default:

@@ -20,6 +20,10 @@ int push(char* value)
 
     strcpy(stack[top],value);
 
+
+    if (error = change_directory(value))
+        return error;
+
     return 0;
 }   
 int pop(char** value)
@@ -31,6 +35,10 @@ int pop(char** value)
         return error;
 
     free(stack[top--]);
+
+    //Updates the current working directory to the top most value, after the pop.
+    if (error = change_directory(stack[top]))
+        return error;
 
     return 0;
 }
@@ -49,7 +57,7 @@ int peek(char** value)
 }
 int print_stack()
 {
-    for (int i = 0; i < top+1; i++)
+    for (int i = top; i >= 0; i--)
         printf("%s  ",stack[i]);
     printf("\n");
 
@@ -71,27 +79,25 @@ int change_directory(char* cwd)
     if (!cwd)
         return CWD_NOT_FOUND;
 
-    if (chdir(cwd))
+    if (chdir(cwd)) //Changing the directory
         return CWD_NOT_FOUND; //Change this to perror maybe
 
     char* new_cwd;
-    if (!(new_cwd = getcwd(NULL,0)))
+    if (!(new_cwd = getcwd(NULL,0))) //Getting the new directory
         return CWD_NOT_FOUND; //perror?
 
-    if (setenv("PWD",new_cwd,1))
+    if (setenv("PWD",new_cwd,1)) //Setting PWD(env) to the new directory
         return ENV_VARIABLE_NOT_FOUND_ERROR;
 
     node* current_node;
 
-    if (!(current_node = node_search("CWD")))
+    if (!(current_node = node_search("CWD"))) 
         return CWD_NOT_FOUND;
 
-    //Will mirror CWD(shell) and CWD(env) to the newly updated value in PWD(env)
-    if (error = node_edit(current_node, new_cwd))
+    if (error = node_edit(current_node, new_cwd)) //Set CWD(env and shell) to the new directory
         return error;
 
-    //Update directory stack by changing top most element.
-    if (error = change_topmost(new_cwd))
+    if (error = change_topmost(new_cwd)) //Updating dierctory stack by changing the top most element.
         return error;
     
     return 0;

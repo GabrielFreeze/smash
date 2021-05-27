@@ -81,6 +81,7 @@ char** envp;
 int internal_commands_len = 11;
 int error = 0;
 
+FILE* fp;
 node* head;
 node* tail;
 extern char **environ;
