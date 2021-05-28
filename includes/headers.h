@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -31,6 +32,7 @@ int contains_char(char* string, char a);
 int tokens_parse(char* tokens[TOKEN_SIZE], int token_num);
 int str_to_int(int* value, char* string);
 int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j);
+int execute_external(char* args[TOKEN_SIZE], int arg_num);
 int print_stack();
 int peek(char** value);
 int pop(char** value);

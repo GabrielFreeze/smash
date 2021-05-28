@@ -129,8 +129,9 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
         error = PARSE_ERROR;
         return NULL;
     }
-
-    if (!(tokens = (char**) malloc(max_length * sizeof(char*))))
+    
+    //Using calloc and an extra 1 so I can pass these tokens as a null terminated array of pointers.
+    if (!(tokens = (char**) calloc(max_length+1, sizeof(char*))))
     {
         error = TOKENS_MEMORY_ERROR;
         return tokens;
@@ -516,8 +517,11 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
     int match = 1;
     for(i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
     
-    if(match)//It is an external command
-        return 0;
+    if(match)
+    {
+        if (error = execute_external(tokens, token_num))
+            return error;
+    }//It is an external command
 
     else //It is an internal command
     {
@@ -716,6 +720,35 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             return 0;
     }
 }
+int execute_external(char* args[TOKEN_SIZE], int arg_num)
+{
+    pid_t pid;
+    int status;
+
+    if ((pid = fork()) == -1)
+    {
+        printf("Fork -1\n");
+        return FORK_ERROR;
+    }
+    if (!pid && execvp(args[0],args) == -1) //Child process binary image is replaced     
+        return SYSTEM_CALL_ERROR;
+
+    else //Parent process
+    {
+
+        if (wait(&status) > 0 && WIFEXITED(status))
+        { 
+            if (WEXITSTATUS(status))   
+                printf("Child process terminated with NON-ZERO exit code\n");                    
+        } 
+        else 
+            printf("Child process did not terminate normally\n");            
+
+
+    }
+
+    return 0;
+}
 int str_to_int(int* value, char* string)
 {
     char* end;
@@ -774,7 +807,7 @@ int contains_word(char* input, char* key)
             if (input[i+j] != key[j])
                 break;
         }    
-        
+
         if (j > key_len) // Loop breaked
             continue;
         else //Loop finished

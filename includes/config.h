@@ -33,6 +33,7 @@
 #define NULL_GIVEN_ERROR 18
 #define NOT_A_DIR_ERROR 19
 #define SYSTEM_CALL_ERROR 20
+#define FORK_ERROR 21
 
 #define EXIT_CMD 0
 #define ECHO_CMD 1
