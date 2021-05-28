@@ -4,9 +4,6 @@
 
 
 
-//__________________________________Variables__________________________________
-
-
 //______________________________________TODO___________________________________
 /*
 
@@ -41,31 +38,40 @@ int main(int argc, char** argv)
     //  let input 
     while (1)
     {   
-        // while (input = linenoise(prompt))
+        tokens = NULL;
+        var_indices = NULL;
 
         if (read_from_file)
         {
             if(!(input = get_input_from_file(fp)))
             {
+                fclose(fp);
                 read_from_file = false;
                 input = linenoise(prompt);
             }
         }
         else
             input = linenoise(prompt);
-
-        
+  
         if (!input)
         {
-            error = NULL_GIVEN;
+            error = NULL_GIVEN_ERROR;
             goto end;
         }
 
         interpret_vars_assign = false;
+
+        if (read_from_file && contains_word(input,"source"))
+        {
+            fclose(fp);
+            read_from_file = false;
+            fprintf(stderr,"Nested source statements are not supported.\n");
+            goto end;
+        }
+
         if (input[0] != '\0' && input[0] != '/')
         {
-            tokens = NULL;
-            var_indices = NULL;
+
             tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len);
             if (!(tokens))
                 goto end;
@@ -77,6 +83,7 @@ int main(int argc, char** argv)
             
             int i,j;
             //Loop through all tokens, performing variable expansion and assignment per token.
+            
             for (i = 0, j = 0; i < token_num; i++)
             {
                 //If variable expansion has to be performed on the token at i
@@ -102,7 +109,6 @@ int main(int argc, char** argv)
                 goto end;
             
 
-            
             end:
                 handle_error();
                 tokens_free(tokens,token_num);

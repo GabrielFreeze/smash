@@ -38,3 +38,4 @@ int push(char* value);
 bool is_full();
 int change_directory(char* value);
 char* get_input_from_file(FILE* fp);
+int contains_word(char* input, char* key);

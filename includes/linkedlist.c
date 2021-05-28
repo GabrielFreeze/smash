@@ -22,7 +22,6 @@ int node_insert(char* key, char* value, bool env)
 
     if (!vars_len)
         tail = new_node;
-    
     else
         head->prev = new_node;
 
@@ -32,7 +31,6 @@ int node_insert(char* key, char* value, bool env)
 
     vars_len++;
     
-
     return 0;
 
 }
@@ -77,9 +75,9 @@ int node_edit(node* current_node, char* value)
         return NODE_NOT_FOUND_ERROR;
     
     if (!value)
-        return NULL_GIVEN;
+        return NULL_GIVEN_ERROR;
 
-    current_node = (node*) realloc(current_node, strlen(value));
+    current_node = (node*) realloc(current_node, strlen(value)+1);
     strcpy(current_node->value,value);
 
     //Update the enviroment variable representing this shell variable.

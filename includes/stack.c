@@ -20,7 +20,6 @@ int push(char* value)
 
     strcpy(stack[top],value);
 
-
     if (error = change_directory(value))
         return error;
 
@@ -65,26 +64,23 @@ int print_stack()
 }
 int change_topmost(char* value)
 {
-    // if ((stack[top] = (char*) realloc(stack[top],strlen(value)+1)));
-    //     return MEMORY_ERROR;
     if (!(stack[top] = (char*) realloc(stack[top], strlen(value)+1)))
         return MEMORY_ERROR;
 
     strcpy(stack[top],value);
-    printf("%s\n",stack[top]);
     return 0;
 }
 int change_directory(char* cwd)
 {
     if (!cwd)
-        return CWD_NOT_FOUND;
+        return CWD_NOT_FOUND_ERROR;
 
     if (chdir(cwd)) //Changing the directory
-        return CWD_NOT_FOUND; //Change this to perror maybe
+        return CWD_NOT_FOUND_ERROR; //Change this to perror maybe
 
     char* new_cwd;
     if (!(new_cwd = getcwd(NULL,0))) //Getting the new directory
-        return CWD_NOT_FOUND; //perror?
+        return CWD_NOT_FOUND_ERROR; //perror?
 
     if (setenv("PWD",new_cwd,1)) //Setting PWD(env) to the new directory
         return ENV_VARIABLE_NOT_FOUND_ERROR;
@@ -92,7 +88,7 @@ int change_directory(char* cwd)
     node* current_node;
 
     if (!(current_node = node_search("CWD"))) 
-        return CWD_NOT_FOUND;
+        return CWD_NOT_FOUND_ERROR;
 
     if (error = node_edit(current_node, new_cwd)) //Set CWD(env and shell) to the new directory
         return error;

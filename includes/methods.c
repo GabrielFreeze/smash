@@ -13,7 +13,7 @@ int tokens_len(char* string)
         type = char_type(string,i);
 
         if (type == QUOTE)
-            in_quotes = in_quotes? false:true;
+            in_quotes ^= true;
         
         //If: The character is a meta character, and its previous characters are either normal or quote
         //Then: This means a token just ended, so increment token_count
@@ -29,6 +29,10 @@ int tokens_len(char* string)
 
             prev_type = type;
     }
+
+    if (in_quotes)
+        return 0;
+
     //Since the only way a token is considered is if a string of characters is terminated with a meta character...
     //Check if the last character was META or not. If it wasn't meta, that means there is one final token that we need to consider
     return (type == NORMAL || type == QUOTE)? count+1 : count;
@@ -98,32 +102,11 @@ bool is_deref(char* string, int upper)
 }
 int handle_error()
 {
-    if (error == MEMORY_ERROR)
-        fprintf(stderr, MEMORY_ERROR_MSG) ;
-
-    if (error == BUFFER_OVERFLOW_ERROR)
-        fprintf(stderr, BUFFER_ERROR_MSG,TOKEN_SIZE);
-
-    if (error == PARSE_ERROR)
-        fprintf(stderr, PARSE_ERROR_MSG);
-        
-    if (error == VARIABLE_DECLARATION_ERROR)
-        fprintf(stderr, VARIABLE_DECLARATION_MSG);
-
-    if (error == VARIABLE_EXPANSION_ERROR)
-        fprintf(stderr, VARIABLE_EXPANSION_MSG);
-
-    if (error == VARIABLE_ASSIGNMENT_ERROR)
-        fprintf(stderr, VARIABLE_ASSIGNMENT_MSG);
-    
-    if (error == NODE_NOT_FOUND_ERROR)
-        fprintf(stderr, NODE_NOT_FOUND_MSG);
-
-    if (error == NODE_ASSIGNMENT_ERROR)
-        fprintf(stderr, NODE_ASSIGNMENT_MSG);
-    
+    if (error)
+        fprintf(stderr,"%s",errors[error]);
+   
     if (error == SYSTEM_CALL_ERROR)
-        perror("Error:");
+        perror("Error");
 
     return 0;
     
@@ -141,25 +124,24 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
     bool in_quotes = false;
     int type, prev_type = NONE;
 
-    if ((max_length = tokens_len(input)) <= 0)
+    if (!(max_length = tokens_len(input)))
     {
         error = PARSE_ERROR;
         return NULL;
     }
 
-    if ((tokens = (char**) malloc(max_length * sizeof(char*))) == NULL)
+    if (!(tokens = (char**) malloc(max_length * sizeof(char*))))
     {
         error = TOKENS_MEMORY_ERROR;
         return tokens;
     }
     //Lets assume the worst case scenario. All the tokens provided are variables that need to be expanded.
-    if((var_indices2 = (tokenchar_pair*) malloc(max_length * sizeof(tokenchar_pair))) == NULL)
+    if(!(var_indices2 = (tokenchar_pair*) malloc(max_length * sizeof(tokenchar_pair))))
     {
         error = VARINDICES_MEMORY_ERROR;
         return tokens;
     }
  
-
     for (int i = 0; i < strlen(input); i++)
     {
         prev_type = type;
@@ -188,7 +170,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
 
         if (type == QUOTE)
         {       
-            in_quotes = in_quotes? false:true;
+            in_quotes ^= true;
             continue;   
         }            
 
@@ -222,13 +204,6 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
         else
             current_token[j++] = input[i];
                 
-    }
-
-    //If we traverse the whole input string and we are still in quotes, then that means the user used quotes incorrectly.
-    if(in_quotes)
-    {
-        error = PARSE_ERROR;
-        return tokens;
     }
 
     //If j is greater than 0 , that means there is still data in the current_token vector, which has not been added to tokens.
@@ -348,7 +323,9 @@ int init_vars(void)
 
     if(readlink("/proc/self/exe", shell, BUFSIZE) == -1)
         return NODE_ASSIGNMENT_ERROR;
-        
+    
+    // printf("%s\n",shell);
+
     if (error = node_insert("SHELL", shell ,true))
         return error;
     
@@ -373,11 +350,12 @@ int init_vars(void)
 } 
 bool vars_valid(char* token, int j)
 {
+    
     if (    (token[j] >= '0'  && token[j] <= '9') || 
             (token[j] >= 'a'  && token[j] <= 'z') || 
             (token[j] >= 'A'  && token[j] <= 'Z') || 
             (token[j] == '_'))
-        return j;
+        return true;
 
     return false;        
 }
@@ -495,12 +473,14 @@ int assign_vars(char** tokens, int length, int i)
     if (j != 2)
         return VARIABLE_ASSIGNMENT_ERROR;
 
+    if (key_value[0][0] >= '0' && key_value[0][0] <= '9')
+        return VARIABLE_NAME_ERROR;
+    
     
     //If: The node doesn't exist
     //Then: Create it and assign it the values given.
     //Else(if it does exists): edit the node with the new value and...
     // if the variable edited was CWD, update PWD(env) with the same value
-    //
 
     if (!(current_node = node_search(key_value[0])))
     {
@@ -515,14 +495,6 @@ int assign_vars(char** tokens, int length, int i)
         if (!strcmp(current_node->key,"CWD") && setenv("PWD",getenv("CWD"),1))
             return ENV_VARIABLE_NOT_FOUND_ERROR;
     }
-
-
-
-
-    
-    //PWD(env) should mirror CWD(env) which mirrors the shell variable $CWD
-    
-    
     
     return 0;
 
@@ -611,17 +583,19 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
         case SHOWVAR_CMD:
         {   
-            if (arg_num > 1)
-                return INVALID_ARGS_ERROR;
 
             if (!arg_num) //Print all shell vars
                 nodes_print();
             else //Print just one shell var
             {
-                node* current_node;
-                if ((current_node = node_search(args[0])) == NULL)
-                    return NODE_NOT_FOUND_ERROR;
-                printf("%s=%s\n",current_node->key,current_node->value);
+                for (int i = 0; i < arg_num; i++)
+                {
+                    node* current_node;
+                    if (!(current_node = node_search(args[i])))
+                        return NODE_NOT_FOUND_ERROR;
+
+                    printf("%s=%s\n",current_node->key,current_node->value);
+                }      
             }
 
             return 0;
@@ -658,9 +632,6 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
         case SHOWENV_CMD:
         {
-            if (arg_num > 1)
-                return INVALID_ARGS_ERROR;
-
             if (!arg_num)
             {
                 for (char** var = environ; *var; var++)
@@ -668,11 +639,15 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             }
             else
             {
-                char* var;
-                if (!(var = getenv(args[0])))
-                    return ENV_VARIABLE_NOT_FOUND_ERROR;
+                for (int i = 0; i < arg_num; i++)
+                {
+                    char* var;
+                    if (!(var = getenv(args[i])))
+                        return ENV_VARIABLE_NOT_FOUND_ERROR;
 
-                printf("%s=%s\n", args[0], var);
+                    printf("%s=%s\n", args[i], var);
+                }
+                
             }
 
             return 0;
@@ -686,7 +661,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
 
             //Checks if argument is a existing directory
             if (stat(args[0], &sb) || !S_ISDIR(sb.st_mode))
-                return NOT_A_DIR;
+                return NOT_A_DIR_ERROR;
             
             //Pushing directory into stack and changing current working directory to new value
             if (error = push(args[0]))
@@ -738,7 +713,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         }
       
         default:
-            return INVALID_FUNCTION_USE_ERROR;
+            return 0;
     }
 }
 int str_to_int(int* value, char* string)
@@ -779,3 +754,36 @@ char* get_input_from_file(FILE* fp)
     return input;
 
 }
+int contains_word(char* input, char* key)
+{
+
+    int input_len = strlen(input);
+    int key_len = strlen(key);
+    bool proceed = false;
+    int j = 0;
+
+    if (input_len < key_len)
+        return INVALID_ARGS_ERROR;
+
+    for (int i = 0; i < input_len-key_len; i++)
+    {
+        proceed = false;
+
+        for (j = 0; j < key_len; j++)
+        {
+            if (input[i+j] != key[j])
+                break;
+        }    
+        
+        if (j > key_len) // Loop breaked
+            continue;
+        else //Loop finished
+            return 1;
+    }
+
+    return 0;
+
+
+}
+
+
