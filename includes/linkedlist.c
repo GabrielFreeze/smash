@@ -29,6 +29,9 @@ int node_insert(char* key, char* value, bool env)
     new_node->next = head;
     head = new_node;
 
+    if (env && setenv(key,value,true))
+        return ENV_VARIABLE_ASSIGNMENT_ERROR;
+    
     vars_len++;
     
     return 0;
@@ -77,7 +80,7 @@ int node_edit(node* current_node, char* value)
     if (!value)
         return NULL_GIVEN_ERROR;
 
-    current_node = (node*) realloc(current_node, strlen(value)+1);
+    current_node->value = (char*) realloc(current_node->value, strlen(value)+1);
     strcpy(current_node->value,value);
 
     //Update the enviroment variable representing this shell variable.

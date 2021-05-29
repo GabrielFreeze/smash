@@ -76,7 +76,7 @@ int change_directory(char* cwd)
         return CWD_NOT_FOUND_ERROR;
 
     if (chdir(cwd)) //Changing the directory
-        return CWD_NOT_FOUND_ERROR; //Change this to perror maybe
+        return SYSTEM_CALL_ERROR; //Change this to perror maybe
 
     char* new_cwd;
     if (!(new_cwd = getcwd(NULL,0))) //Getting the new directory

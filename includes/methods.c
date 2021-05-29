@@ -102,11 +102,15 @@ bool is_deref(char* string, int upper)
 }
 int handle_error()
 {
+    if (error == SYSTEM_CALL_ERROR)
+    {
+        perror("Error");
+        return 0;
+    }
+    
     if (error)
         fprintf(stderr,"%s",errors[error]);
    
-    if (error == SYSTEM_CALL_ERROR)
-        perror("Error");
 
     return 0;
     
@@ -130,12 +134,13 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
         return NULL;
     }
     
-    //Using calloc and an extra 1 so I can pass these tokens as a null terminated array of pointers.
+    //Using calloc and an extra 1 so I can pass these tokens as a null terminated array of pointers to execvp.
     if (!(tokens = (char**) calloc(max_length+1, sizeof(char*))))
     {
         error = TOKENS_MEMORY_ERROR;
         return tokens;
     }
+ 
     //Lets assume the worst case scenario. All the tokens provided are variables that need to be expanded.
     if(!(var_indices2 = (tokenchar_pair*) malloc(max_length * sizeof(tokenchar_pair))))
     {
@@ -231,7 +236,7 @@ int tokens_free(char** tokens, int length)
     if (!tokens)
         return 0;
 
-    for (int i = 0; i < length; i++)
+    for (int i = 0; i < length+1; i++)
     {
         free(tokens[i]);
     }
@@ -265,45 +270,35 @@ int init_vars(void)
     int uid = geteuid(); // Get effective user id
     struct passwd *pass = getpwuid(uid); // Get password file entry structure
 
-    if (!node_search("PATH"))
-    {
-        if (error = node_insert("PATH","/bin",true))
-            return error;
-        if (setenv("PATH","/bin",1))
-            return ENV_VARIABLE_ASSIGNMENT_ERROR;
-    }
-    if (!node_search("HOME"))
-    {
-        if (error = node_insert("HOME",pass->pw_dir,true))
-            return error;
-        if (setenv("HOME",pass->pw_dir,1))
-            return ENV_VARIABLE_ASSIGNMENT_ERROR;
-    }
-    if (!node_search("USER"))
-    {
-        if (error = node_insert("USER",pass->pw_name,true))
-            return error;
-        if (setenv("USER",pass->pw_name,1))
-            return ENV_VARIABLE_ASSIGNMENT_ERROR;
-    }
-
-    //______________________________________________________________________
+    if (!node_search("PATH") && (error = node_insert("PATH","/bin",true)))
+        return error;
     
-    if (error = node_insert("PROMPT", "init>" ,false))
+    if (!node_search("HOME") && (error = node_insert("HOME",pass->pw_dir,true)))
+        return error;
+    
+    if (!node_search("USER") && (error = node_insert("USER",pass->pw_name,true)))
+        return error;
+    
+    if (!node_search("PROMPT") && (error = node_insert("PROMPT", "init>", true)))
+        return error;
+
+    if (!node_search("TERMINAL") && (error = node_insert("TERMINAL", getenv("TERM"), true)))
+        return error;
+   
+    if (!node_search("EXITCODE") && (error = node_insert("EXITCODE", "NONE", true)))
         return error;
 
     //______________________________________________________________________
 
     //Any changes to PWD (env), should be mirrored to CWD (env), which is then mirrored to CWD (shell).
+    // No if statement because the current working directory must always point to home
+
     char cwd[VALUE_SIZE];
     strcpy(cwd,getenv("HOME"));
 
     if (error = node_insert("CWD", cwd, true)) //Create shell variable CWD.
         return error;
     
-    if (setenv("CWD",cwd,1)) //Mirror CWD(shell) with CWD(env)
-        return ENV_VARIABLE_ASSIGNMENT_ERROR;
-
     if (setenv("PWD", cwd, true)) //Create PWD/Edit PWD(env), and mirror it with CWD(shell) and CWD(env)
         return ENV_VARIABLE_ASSIGNMENT_ERROR;
 
@@ -312,41 +307,28 @@ int init_vars(void)
     if (current_node = node_search("PWD"))
         node_delete(current_node); 
     
-
     if (error = push(cwd)) //Pushing cwd onto the directory stack
         return error;
 
     chdir(cwd);
-
+    
     //______________________________________________________________________
+
+    //Renew the location of the program executable
 
     char shell[BUFSIZE];
 
     if(readlink("/proc/self/exe", shell, BUFSIZE) == -1)
         return NODE_ASSIGNMENT_ERROR;
-    
-    // printf("%s\n",shell);
 
     if (error = node_insert("SHELL", shell ,true))
         return error;
-    
-    if (setenv("SHELL",shell,1))
-        return ENV_VARIABLE_ASSIGNMENT_ERROR;
-    //______________________________________________________________________
 
     
-    if (error = node_insert("TERMINAL", getenv("TERM"), false))
-        return error;
 
-    //______________________________________________________________________
 
-   
-    if (error = node_insert("EXITCODE", "NONE", false))
-        return error;
 
-    printf("%d\n",vars_len);
     return 0;
-
 
 } 
 bool vars_valid(char* token, int j)
@@ -581,6 +563,11 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             if (arg_num != 1)
                 return INVALID_ARGS_ERROR;
 
+            struct stat sb;
+            //Checks if argument is a existing directory
+            if (stat(args[0], &sb) || !S_ISDIR(sb.st_mode))
+                return NOT_A_DIR_ERROR;
+            
             if (error = change_directory(args[0]))
                 return error;
             return 0;
@@ -724,6 +711,8 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
 {
     pid_t pid;
     int status;
+    int exitcode;
+    char str[10];
 
     if ((pid = fork()) == -1)
     {
@@ -731,15 +720,28 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
         return FORK_ERROR;
     }
     if (!pid && execvp(args[0],args) == -1) //Child process binary image is replaced     
-        return SYSTEM_CALL_ERROR;
+    {
+        fprintf(stderr,"Could not find binary file %s\n",args[0]);
+        exit(EXIT_FAILURE);
+    }
 
     else //Parent process
     {
 
         if (wait(&status) > 0 && WIFEXITED(status))
         { 
-            if (WEXITSTATUS(status))   
-                printf("Child process terminated with NON-ZERO exit code\n");                    
+            //Updates node_edit with the exitcode, if any.
+
+            if ((exitcode = WEXITSTATUS(status)))
+            {
+                sprintf(str, "%d", exitcode);
+
+                if (error = node_edit(node_search("EXITCODE"), str)) 
+                    return error;
+            }
+
+            
+                          
         } 
         else 
             printf("Child process did not terminate normally\n");            
@@ -773,14 +775,14 @@ char* get_input_from_file(FILE* fp)
     int length = strlen(line);
 
     char* input;
-    if (!(input = (char*) malloc(length-1)))
+    if (!(input = (char*) malloc(length)))
     {
         error = MEMORY_ERROR;
         return NULL;
     }
     
     //Change the newline character with a null terminator
-    line[length-2] = '\0';
+    line[length-1] = '\0';
     strcpy(input,line);
 
 
@@ -796,7 +798,7 @@ int contains_word(char* input, char* key)
     int j = 0;
 
     if (input_len < key_len)
-        return INVALID_ARGS_ERROR;
+        return 0;
 
     for (int i = 0; i < input_len-key_len; i++)
     {
@@ -808,7 +810,7 @@ int contains_word(char* input, char* key)
                 break;
         }    
 
-        if (j > key_len) // Loop breaked
+        if (j < key_len) // Loop breaked
             continue;
         else //Loop finished
             return 1;

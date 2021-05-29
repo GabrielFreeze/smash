@@ -29,13 +29,12 @@ int main(int argc, char** argv)
         exit(0);
     }
     
-    char* prompt = "init>";
+    char* prompt;
     char line[BUFSIZE];
 
-    //if "reading from file"
-    //  let input = fgets()
-    //else
-    //  let input 
+
+    prompt = node_search("PROMPT")->value;
+
     while (1)
     {   
         tokens = NULL;
@@ -61,13 +60,7 @@ int main(int argc, char** argv)
 
         interpret_vars_assign = false;
 
-        if (read_from_file && contains_word(input,"source"))
-        {
-            fclose(fp);
-            read_from_file = false;
-            fprintf(stderr,"Nested source statements are not supported.\n");
-            goto end;
-        }
+
 
         if (input[0] != '\0' && input[0] != '/')
         {
@@ -105,7 +98,16 @@ int main(int argc, char** argv)
             //From this comment forward, the first argument the user entered is sure to be a command, and not a variable assignment statement.
             //The first token is the command, all other subsequent tokens are arguments to the command.
 
-            if(error = tokens_parse(tokens, token_num))
+
+            if (read_from_file && contains_word(tokens[0],"source"))
+                {
+                    fclose(fp);
+                    read_from_file = false;
+                    fprintf(stderr,"Nested source statements are not supported.\n");
+                    goto end;
+                }
+
+            if (error = tokens_parse(tokens, token_num))
                 goto end;
             
 
@@ -120,6 +122,7 @@ int main(int argc, char** argv)
                     prompt = prompt_default;
                 else
                     prompt = current_node->value;
+                
         }
         free(input);
     }
