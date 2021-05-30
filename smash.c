@@ -55,33 +55,33 @@ int main(int argc, char** argv)
         }
 
         interpret_vars_assign = false;
+        redirect_token_index = -2;
+        redirect_char_index = -2;
 
         if (input[0] != '\0' && input[0] != '/')
         {
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
-            printf("%d\n",token_num);
-            // printf("%d\n",redirect_token_index);
+            if (error = redirect())
+                goto end;
+            
 
             //If the first argument contains an =, then it means the user is doing variable assignment
             //...and the tokens should not be interpreted as [cmd arg0 arg1 ...], but just as a series of variable assignments.
             if (contains_char(tokens[0],'=') != -1) 
                 interpret_vars_assign = true;
             
-            int i,j;
             //Loop through all tokens, performing variable expansion and assignment per token.
             
+            int i,j;
             for (i = 0, j = 0; i < token_num; i++)
             {
-                //If variable expansion has to be performed on the token at i
-                if ((j < var_indices_len) && (i == var_indices[j].token_index)) 
-                {
-                    if (error = expand_vars(tokens, var_indices, var_indices_len, j++))
-                        goto end;         
-                }
+                //Perform variable expansion, if applicable
+                if ((j < var_indices_len) && (i == var_indices[j].token_index) && (error = expand_vars(tokens, var_indices, var_indices_len, j++))) 
+                    goto end;         
 
-                //Looks for any '=' within the token and assigns accordingly.
+                //Looks for any '=' within the token and assigns accordingly, if applicable
                 if ((interpret_vars_assign) && (error = assign_vars(tokens, token_num, i)))
                     goto end;         
                     
@@ -105,7 +105,7 @@ int main(int argc, char** argv)
             if (error = tokens_parse(tokens, token_num))
                 goto end;
             
-            printf("Redirect state is: %d\n",redirect_state);
+
             end:
                 handle_error();
                 tokens_free(tokens,token_num);

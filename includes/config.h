@@ -126,7 +126,7 @@ node* head;
 node* tail;
 bool read_from_file = false;
 int redirect_state = 0;
-int redirect_token_index = -1;
-int redirect_char_index = -1;
+int redirect_token_index = -2;
+int redirect_char_index = -2;
 
 extern char **environ;

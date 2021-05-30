@@ -15,7 +15,7 @@ int tokens_len(char* string);
 int char_type(char* string, int j);
 char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_indices_len);
 bool is_deref(char* string, int upper);
-bool is_meta (char* string, int j);
+bool is_meta(char* string, int j);
 int handle_error();
 int tokens_free(char** tokens, int length);
 int var_indices_free(tokenchar_pair* var_indices);

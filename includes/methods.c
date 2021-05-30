@@ -15,6 +15,9 @@ int tokens_len(char* string)
     {
         type = char_type(string,i);
 
+        if (in_quotes && type != ESCAPE && type != VARIABLE && type != QUOTE)
+            type = NORMAL;
+        
         if (type == OUTPUT && is_output_cat)
             is_output_cat = false;
         else
@@ -35,8 +38,7 @@ int tokens_len(char* string)
 
             if (has_redirect && !redirect_state)
             {
-
-                redirect_token_index = (prev_type == META)? count+1:count+2;
+                redirect_token_index = (prev_type == META)? count:count+1;
 
                 if (!i)
                     return 0;
@@ -51,28 +53,26 @@ int tokens_len(char* string)
             //If: The character is a meta character, and its previous characters are either normal or quote
             //Then: This means a token just ended, so increment token_count
 
-            if (type == QUOTE && prev_type == QUOTE)
+            if ((type == QUOTE && prev_type == QUOTE) ||
+            (prev_type == VARIABLE && type != NORMAL && type != QUOTE))
                 return 0;
             
-            if (prev_type == VARIABLE && type != NORMAL && type != QUOTE)
-                return 0;
 
             if (!in_quotes && is_meta(string,i) && (prev_type == NORMAL || prev_type == QUOTE))
                 ++count;
         }
-
         prev_type = type;
     }
-
-    if (in_quotes)
-        return 0;
 
     //Since the only way a token is considered is if a string of characters is terminated with a meta character...
     //Check if the last character was META or not. If it wasn't meta, that means there is one final token that we need to consider
     if (type == NORMAL || type == QUOTE) 
-        return count+1;
-    else
-        return count;
+        count++;
+    
+    if  (in_quotes || redirect_token_index == count)
+        return 0;
+    
+    return count;
 
     
 }
@@ -886,5 +886,12 @@ int contains_word(char* input, char* key)
 
 
 }
+int redirect()
+{
+    if (!redirect_state)
+        return 0;
+    
+    //Check redirect_state
 
+}
 
