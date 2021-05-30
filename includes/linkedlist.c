@@ -15,7 +15,6 @@ int node_insert(char* key, char* value, bool env)
         (new_node->value = (char*) malloc(strlen(value)+1)))))
         return MEMORY_ERROR;
 
-
     strcpy(new_node->key, key);
     strcpy(new_node->value, value);
     new_node->env = env;

@@ -7,27 +7,61 @@ int tokens_len(char* string)
     int count = 0;
     bool in_quotes = false;
     int type, prev_type = NONE;
+    int redirect_char = NONE;
+    bool is_output_cat = false;
+    int has_redirect = false;
 
-    for(int i = 0; i < strlen(string); i++)
+    for (int i = 0; i < strlen(string); i++)
     {
         type = char_type(string,i);
 
-        if (type == QUOTE)
-            in_quotes ^= true;
-        
-        //If: The character is a meta character, and its previous characters are either normal or quote
-        //Then: This means a token just ended, so increment token_count
+        if (type == OUTPUT && is_output_cat)
+            is_output_cat = false;
+        else
+        {
+            is_output_cat = false;
 
-        if (type == QUOTE && prev_type == QUOTE)
-            return 0;
-        
-        if (prev_type == VARIABLE && type != NORMAL && type != QUOTE)
-            return 0;
+            if (i != strlen(string)-1 && type == OUTPUT && char_type(string, i+1) == OUTPUT)
+            {
+                type = OUTPUT_CAT;
+                is_output_cat = true;
+            }
 
-        if (!in_quotes && type == META && (prev_type == NORMAL || prev_type == QUOTE))
-            ++count;
+            if (has_redirect && (type == OUTPUT || type == OUTPUT_CAT || type == INPUT))
+                return 0;
 
-            prev_type = type;
+            if (type == OUTPUT || type == OUTPUT_CAT || type == INPUT)
+                has_redirect = true;
+
+            if (has_redirect && !redirect_state)
+            {
+
+                redirect_token_index = (prev_type == META)? count+1:count+2;
+
+                if (!i)
+                    return 0;
+
+                redirect_char_index = i;
+                redirect_state = type;
+            }
+
+            if (type == QUOTE)
+                in_quotes ^= true;
+            
+            //If: The character is a meta character, and its previous characters are either normal or quote
+            //Then: This means a token just ended, so increment token_count
+
+            if (type == QUOTE && prev_type == QUOTE)
+                return 0;
+            
+            if (prev_type == VARIABLE && type != NORMAL && type != QUOTE)
+                return 0;
+
+            if (!in_quotes && is_meta(string,i) && (prev_type == NORMAL || prev_type == QUOTE))
+                ++count;
+        }
+
+        prev_type = type;
     }
 
     if (in_quotes)
@@ -35,7 +69,11 @@ int tokens_len(char* string)
 
     //Since the only way a token is considered is if a string of characters is terminated with a meta character...
     //Check if the last character was META or not. If it wasn't meta, that means there is one final token that we need to consider
-    return (type == NORMAL || type == QUOTE)? count+1 : count;
+    if (type == NORMAL || type == QUOTE) 
+        return count+1;
+    else
+        return count;
+
     
 }
 int char_type(char* string, int j)
@@ -55,17 +93,6 @@ int char_type(char* string, int j)
                 return QUOTE;
         }
     }
-
-    for (int i = 0; i < strlen(metacharacters); i++)
-    {
-        if (string[j] == metacharacters[i])
-        {
-            if (is_deref(string, j))
-                return NORMAL;
-            else
-                return META;
-        }
-    }
     
     if (string[j] == '\\')
     {
@@ -83,8 +110,40 @@ int char_type(char* string, int j)
             return VARIABLE;
     }
 
-    return NORMAL; //If its none of the above, then its just a normal character.
+    if (string[j] == '>')
+    {
+        if (is_deref(string,j))
+            return NORMAL;
+        else
+            return OUTPUT;
+    }
 
+    if (string[j] == '<')
+    {
+        if (is_deref(string,j))
+            return NORMAL;
+        else
+            return INPUT;
+    }
+
+    return is_meta(string,j)? META:NORMAL; //If its none of the above, then its just a normal character.
+
+}
+bool is_meta(char* string, int j)
+{
+
+    for (int i = 0; i < strlen(metacharacters); i++)
+    {
+        if (string[j] == metacharacters[i])
+        {
+            if (is_deref(string, j))
+                return 0;
+            else
+                return 1;
+        }
+    }
+
+    return 0;
 }
 bool is_deref(char* string, int upper)
 {
@@ -126,6 +185,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
     tokenchar_pair* var_indices2;
     char current_token[TOKEN_SIZE];
     bool in_quotes = false;
+    bool meta = false;
     int type, prev_type = NONE;
 
     if (!(max_length = tokens_len(input)))
@@ -150,6 +210,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
  
     for (int i = 0; i < strlen(input); i++)
     {
+        meta = is_meta(input, i);
         prev_type = type;
         type = char_type(input, i);
 
@@ -158,6 +219,10 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
             error =  BUFFER_OVERFLOW_ERROR;
             return tokens;
         }
+
+        //Check if the redirect character is placed correctly
+        // Cannot be at  start or end
+        // Must have only one token follwing them, the name of the file.
 
         //Eg: $ followed by a META, or $""
         if (prev_type == VARIABLE && type != NORMAL && type != QUOTE)
@@ -182,11 +247,14 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
 
         //Anything in quotes except for special shell characters should be treated as is, devoid of any special meaning.
         if (in_quotes && type != ESCAPE && type != VARIABLE)
+        {
             type = NORMAL;
+            meta = false;
+        }
 
-        //Just like the token_len function, if its a metacharacter terminated a string, then this is the end of a token
+        //Just like the token_len function, if a metacharacter terminated a string, then this is the end of a token
         //So lets save it in into tokens.
-        if (type == META && (prev_type == NORMAL || prev_type == QUOTE))
+        if (meta && (prev_type == NORMAL || prev_type == QUOTE))
         {
             if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
                 {   
@@ -205,7 +273,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
             j = 0;
         }
 
-        else if ((type == META) || (type == ESCAPE))
+        else if (meta || (type == ESCAPE))
             continue;
         else
             current_token[j++] = input[i];
@@ -738,9 +806,7 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
 
                 if (error = node_edit(node_search("EXITCODE"), str)) 
                     return error;
-            }
-
-            
+            }       
                           
         } 
         else 

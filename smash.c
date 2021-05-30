@@ -21,8 +21,6 @@ int main(int argc, char** argv)
     bool interpret_vars_assign = false;
     setbuf(stdout, NULL);
 
-
-
     if (error = init_vars())
     {
         handle_error();
@@ -31,8 +29,6 @@ int main(int argc, char** argv)
     
     char* prompt;
     char line[BUFSIZE];
-
-
     prompt = node_search("PROMPT")->value;
 
     while (1)
@@ -60,15 +56,14 @@ int main(int argc, char** argv)
 
         interpret_vars_assign = false;
 
-
-
         if (input[0] != '\0' && input[0] != '/')
         {
-
-            tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len);
-            if (!(tokens))
+            if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
-                
+            
+            printf("%d\n",token_num);
+            // printf("%d\n",redirect_token_index);
+
             //If the first argument contains an =, then it means the user is doing variable assignment
             //...and the tokens should not be interpreted as [cmd arg0 arg1 ...], but just as a series of variable assignments.
             if (contains_char(tokens[0],'=') != -1) 
@@ -110,11 +105,12 @@ int main(int argc, char** argv)
             if (error = tokens_parse(tokens, token_num))
                 goto end;
             
-
+            printf("Redirect state is: %d\n",redirect_state);
             end:
                 handle_error();
                 tokens_free(tokens,token_num);
                 var_indices_free(var_indices);
+                redirect_state = 0;
                 
                 //If the user decides to delete the PROMPT variable, the default value should display.
                 node* current_node;

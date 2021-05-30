@@ -11,6 +11,9 @@
 #define VARIABLE 3
 #define QUOTE 4
 #define EQUAL 5
+#define OUTPUT 6
+#define OUTPUT_CAT 7
+#define INPUT 8
 
 
 #define MEMORY_ERROR 1
@@ -122,6 +125,8 @@ FILE* fp;
 node* head;
 node* tail;
 bool read_from_file = false;
-
+int redirect_state = 0;
+int redirect_token_index = -1;
+int redirect_char_index = -1;
 
 extern char **environ;
