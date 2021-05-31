@@ -782,6 +782,7 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
     int status;
     int exitcode;
     char str[10];
+    int fd;
 
     if ((pid = fork()) == -1)
     {
@@ -789,30 +790,52 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
         return FORK_ERROR;
     }
 
-
-
-
     if (!pid)
     {
 
-        if (redirect_state == INPUT)
+
+        switch (redirect_state)
         {
-            int fd = open(input_filename, O_RDWR);
-
-            int read_size;
-            char buffer[BUFSIZ];
-
-            if (read_size = read(fd, buffer, BUFSIZ) == -1)
+            case INPUT:
             {
-                perror("Error");
-                exit(1);
-            }
-            write(STDIN_FILENO, buffer, strlen(buffer));
+                if ((fd = open(filename, O_RDWR)) == -1)
+                {
+                    perror("Error"); // If the file doesnt't exist
+                    exit(EXIT_FAILURE);
+                }
 
-            dup2(fd,STDIN_FILENO);
-            close(fd);
-            
+                dup2(fd,STDIN_FILENO); //Let fd be the file descriptor for input
+                close(fd);
+            }
+            break;
+
+            case OUTPUT:
+            {
+                if ((fd = open(filename, O_CREAT | O_RDWR, S_IRWXU)) == -1)
+                {
+                    perror("Error");
+                    exit(EXIT_FAILURE);
+                }
+
+                dup2(fd,STDOUT_FILENO); //Let fd be the file descriptor for output
+                close(fd);
+            }
+            break;
+
+            case OUTPUT_CAT:
+            {
+                if ((fd = open(filename, O_CREAT | O_APPEND)) == -1)
+                {
+                    perror("Error"); // If the file doesnt't exist
+                    exit(EXIT_FAILURE);
+                }
+
+                dup2(fd,STDOUT_FILENO); //Let fd be the file descriptor for ouput
+                close(fd);
+            }
+            break;
         }
+
 
         if (execvp(args[0],args) == -1) //Child process binary image is replaced     
         {
@@ -922,12 +945,11 @@ int contains_word(char* input, char* key)
 }
 int redirect(char* tokens[TOKEN_SIZE], int* token_num)
 {
-    if (redirect_state == INPUT)
+
+    //If it we have a redirect operator, remove the last token because it is the name of a file.
+    if (redirect_state)
     {
-        //Set that token as the name of the file
-
-        strcpy(input_filename,tokens[*token_num-1]);
-
+        strcpy(filename,tokens[*token_num-1]);
         tokens[(*token_num)-1] = NULL;
 
         (*token_num) --;
