@@ -21,6 +21,9 @@ int main(int argc, char** argv)
     bool interpret_vars_assign = false;
     setbuf(stdout, NULL);
 
+
+    signal(SIGINT, sigint_handler);
+
     if (error = init_vars())
     {
         handle_error();

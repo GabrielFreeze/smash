@@ -9,7 +9,7 @@
 #include <pwd.h>
 #include "limits.h"
 #include "config.h"
-
+#include <signal.h>
 
 int tokens_len(char* string);
 int char_type(char* string, int j);

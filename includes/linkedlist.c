@@ -54,7 +54,6 @@ int node_delete(node* current_node)
     if (!current_node)
         return NODE_NOT_FOUND_ERROR;
 
-
     if (current_node == head)
       head = head->next;
    else

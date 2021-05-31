@@ -385,15 +385,16 @@ int init_vars(void)
     //Renew the location of the program executable
 
     char shell[BUFSIZE];
-
-    if(readlink("/proc/self/exe", shell, BUFSIZE) == -1)
+    
+    //readlink does not append a null terminator to shell
+    for (int i = 0; i < BUFSIZE; i++)
+        shell[i] = '\0';
+    
+    if (readlink("/proc/self/exe", shell, BUFSIZE) == -1)
         return NODE_ASSIGNMENT_ERROR;
 
     if (error = node_insert("SHELL", shell ,true))
         return error;
-
-    
-
 
 
     return 0;
@@ -848,7 +849,13 @@ char* get_input_from_file(FILE* fp)
     }
     
     //Change the newline character with a null terminator
-    line[length-1] = '\0';
+
+    if (line[length-2] == '\r')
+        line[length-2] = '\0';
+    else
+        line[length-1] = '\0';
+
+
     strcpy(input,line);
 
 
@@ -894,4 +901,4 @@ int redirect()
     //Check redirect_state
 
 }
-
+void sigint_handler(){};
