@@ -66,7 +66,7 @@ int main(int argc, char** argv)
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
-            if (error = redirect())
+            if (error = redirect(tokens, &token_num))
                 goto end;
             
 

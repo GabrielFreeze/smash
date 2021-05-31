@@ -129,4 +129,6 @@ int redirect_state = 0;
 int redirect_token_index = -2;
 int redirect_char_index = -2;
 
+char input_filename[TOKEN_SIZE];
+
 extern char **environ;

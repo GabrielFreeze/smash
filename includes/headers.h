@@ -10,6 +10,8 @@
 #include "limits.h"
 #include "config.h"
 #include <signal.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 int tokens_len(char* string);
 int char_type(char* string, int j);
@@ -42,3 +44,4 @@ bool is_full();
 int change_directory(char* value);
 char* get_input_from_file(FILE* fp);
 int contains_word(char* input, char* key);
+int redirect(char* tokens[TOKEN_SIZE], int* token_num);

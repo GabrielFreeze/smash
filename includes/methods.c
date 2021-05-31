@@ -788,11 +788,39 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
         printf("Fork -1\n");
         return FORK_ERROR;
     }
-    if (!pid && execvp(args[0],args) == -1) //Child process binary image is replaced     
+
+
+
+
+    if (!pid)
     {
-        fprintf(stderr,"Could not find binary file %s\n",args[0]);
-        exit(EXIT_FAILURE);
+
+        if (redirect_state == INPUT)
+        {
+            int fd = open(input_filename, O_RDWR);
+
+            int read_size;
+            char buffer[BUFSIZ];
+
+            if (read_size = read(fd, buffer, BUFSIZ) == -1)
+            {
+                perror("Error");
+                exit(1);
+            }
+            write(STDIN_FILENO, buffer, strlen(buffer));
+
+            dup2(fd,STDIN_FILENO);
+            close(fd);
+            
+        }
+
+        if (execvp(args[0],args) == -1) //Child process binary image is replaced     
+        {
+            fprintf(stderr,"Could not find binary file %s\n",args[0]);
+            exit(EXIT_FAILURE);
+        }
     }
+
 
     else //Parent process
     {
@@ -811,8 +839,7 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
                           
         } 
         else 
-            printf("Child process did not terminate normally\n");            
-
+            printf("\nChild process did not terminate normally\n");            
 
     }
 
@@ -893,12 +920,20 @@ int contains_word(char* input, char* key)
 
 
 }
-int redirect()
+int redirect(char* tokens[TOKEN_SIZE], int* token_num)
 {
-    if (!redirect_state)
-        return 0;
+    if (redirect_state == INPUT)
+    {
+        //Set that token as the name of the file
+
+        strcpy(input_filename,tokens[*token_num-1]);
+
+        tokens[(*token_num)-1] = NULL;
+
+        (*token_num) --;
+    } 
     
-    //Check redirect_state
+    return 0;
 
 }
 void sigint_handler(){};
