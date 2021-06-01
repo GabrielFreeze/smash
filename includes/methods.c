@@ -9,7 +9,6 @@ int tokens_len(char* string)
     int type, prev_type = NONE;
     int redirect_char = NONE;
     bool is_output_cat = false;
-    int has_redirect = false;
 
     for (int i = 0; i < strlen(string); i++)
     {
@@ -30,20 +29,27 @@ int tokens_len(char* string)
                 is_output_cat = true;
             }
 
-            if (has_redirect && (type == OUTPUT || type == OUTPUT_CAT || type == INPUT))
-                return 0;
+             //If the type is a redirect
+            if (type >= OUTPUT)
+            {
+                if (type == prev_type)
+                    return 0;
 
-            if (type == OUTPUT || type == OUTPUT_CAT || type == INPUT)
-                has_redirect = true;
+                redirect_count++;
+            }
+            
 
-            if (has_redirect && !redirect_state)
+            if (type >= OUTPUT)
             {
                 redirect_token_index = (prev_type == META)? count:count+1;
+
+                if (redirect_start_index == -1)
+                    redirect_start_index = redirect_token_index;
 
                 if (!i)
                     return 0;
 
-                redirect_char_index = i;
+                redirect_array[redirect_count-1] = type;
                 redirect_state = type;
             }
 
@@ -566,20 +572,20 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
 {
     int i;
     int match = 1;
-    for(i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
+    for (i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
     
-    if(match)
+    //It is an external command
+    if (match)
     {
         if (error = execute_external(tokens, token_num))
             return error;
-    }//It is an external command
+    }
 
     else //It is an internal command
     {
         if (error = execute_internal(tokens+1, token_num-1, i))
             return error;
         //The loop breaks upon finding a match, therefore i should point to the internal command
-
     }
         
     return 0;
@@ -782,7 +788,9 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
     int status;
     int exitcode;
     char str[10];
-    int fd;
+    int fd_input;
+    int fd_output;
+    int fd_output_cat;
 
     if ((pid = fork()) == -1)
     {
@@ -793,55 +801,45 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
     if (!pid)
     {
 
-
-        switch (redirect_state)
+        // Do the input and output have to be redirected?
+        if (redirect_input[0])
         {
-            case INPUT:
+            if ((fd_input = open(redirect_input, O_RDWR)) == -1)
             {
-                if ((fd = open(filename, O_RDWR)) == -1)
-                {
-                    perror("Error"); // If the file doesnt't exist
-                    exit(EXIT_FAILURE);
-                }
-
-                dup2(fd,STDIN_FILENO); //Let fd be the file descriptor for input
-                close(fd);
+                perror("Error");
+                exit(EXIT_FAILURE);
             }
-            break;
-
-            case OUTPUT:
-            {
-                if ((fd = open(filename, O_CREAT | O_RDWR, S_IRWXU)) == -1)
-                {
-                    perror("Error");
-                    exit(EXIT_FAILURE);
-                }
-
-                dup2(fd,STDOUT_FILENO); //Let fd be the file descriptor for output
-                close(fd);
+                dup2(fd_input,STDIN_FILENO);
+                close(fd_input);
+        }
+        
+        if (redirect_output[0])
+        {
+            if ((fd_output = open(redirect_output, O_CREAT | O_RDWR, S_IRWXU)) == -1)
+            {   
+                perror("Error");
+                exit(EXIT_FAILURE);
             }
-            break;
-
-            case OUTPUT_CAT:
-            {
-                if ((fd = open(filename, O_CREAT | O_APPEND)) == -1)
-                {
-                    perror("Error"); // If the file doesnt't exist
-                    exit(EXIT_FAILURE);
-                }
-
-                dup2(fd,STDOUT_FILENO); //Let fd be the file descriptor for ouput
-                close(fd);
-            }
-            break;
+                dup2(fd_output,STDOUT_FILENO);
+                close(fd_output);
         }
 
-
-        if (execvp(args[0],args) == -1) //Child process binary image is replaced     
+        if (redirect_output_cat[0])
         {
-            fprintf(stderr,"Could not find binary file %s\n",args[0]);
-            exit(EXIT_FAILURE);
+            if ((fd_output = open(redirect_output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
+            {
+                perror("Error");
+                exit(EXIT_FAILURE);
+            }
+            dup2(fd_output,STDOUT_FILENO); 
+            close(fd_output);
+
         }
+
+        execvp(args[0],args);  
+        fprintf(stderr,"Could not find binary file %s\n",args[0]);
+        exit(EXIT_FAILURE);
+        
     }
 
 
@@ -943,19 +941,29 @@ int contains_word(char* input, char* key)
 
 
 }
-int redirect(char* tokens[TOKEN_SIZE], int* token_num)
+int redirect(char** tokens, int redirect_state, int j)
 {
 
-    //If it we have a redirect operator, remove the last token because it is the name of a file.
-    if (redirect_state)
-    {
-        strcpy(filename,tokens[*token_num-1]);
-        tokens[(*token_num)-1] = NULL;
+    //What redirect is it?
+    if (redirect_state == INPUT)
+        strcpy(redirect_input, tokens[redirect_start_index+j]);
 
-        (*token_num) --;
-    } 
+    if (redirect_state == OUTPUT)
+        strcpy(redirect_output, tokens[redirect_start_index+j]);
+
+    if (redirect_state == OUTPUT_CAT)
+        strcpy(redirect_output_cat, tokens[redirect_start_index+j]);
     
     return 0;
 
 }
 void sigint_handler(){};
+void reset_redirect()
+{
+    redirect_state = 0;
+    redirect_input[0] = 0;
+    redirect_output[0] = 0;
+    redirect_output_cat[0] = 0;
+    redirect_count = 0;
+    redirect_start_index = -1;
+}

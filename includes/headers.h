@@ -44,4 +44,4 @@ bool is_full();
 int change_directory(char* value);
 char* get_input_from_file(FILE* fp);
 int contains_word(char* input, char* key);
-int redirect(char* tokens[TOKEN_SIZE], int* token_num);
+int redirect(char* tokens[TOKEN_SIZE], int redirect_state, int j);

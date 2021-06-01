@@ -66,9 +66,18 @@ int main(int argc, char** argv)
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
-            if (error = redirect(tokens, &token_num))
-                goto end;
-            
+            //For every redirect save the filename corresponding to it.
+            //Note: The last instance of a redirect has priority over its predeccessors. 
+            for (int i = 0; i < redirect_count; i++) 
+            {
+                if (error = redirect(tokens, redirect_array[i], i))
+                    goto end;
+            }
+
+            //The filenames for redirects should not be treated as additional arguments.
+            //They served their purpose in specifiying the files for input and output, and hence are no longer needed.
+            if (redirect_count) 
+                tokens[token_num = redirect_start_index] = NULL;
 
             //If the first argument contains an =, then it means the user is doing variable assignment
             //...and the tokens should not be interpreted as [cmd arg0 arg1 ...], but just as a series of variable assignments.
@@ -113,7 +122,7 @@ int main(int argc, char** argv)
                 handle_error();
                 tokens_free(tokens,token_num);
                 var_indices_free(var_indices);
-                redirect_state = 0;
+                reset_redirect();
                 
                 //If the user decides to delete the PROMPT variable, the default value should display.
                 node* current_node;

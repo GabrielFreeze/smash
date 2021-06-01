@@ -126,6 +126,16 @@ node* head;
 node* tail;
 bool read_from_file = false;
 int redirect_state = 0;
+
+char redirect_input[TOKEN_SIZE];
+char redirect_output[TOKEN_SIZE];
+char redirect_output_cat[TOKEN_SIZE];
+
+int redirect_count = 0;
+int redirect_array[128];
+int redirect_array_index = 0;
+int redirect_start_index = -1;
+
 int redirect_token_index = -2;
 int redirect_char_index = -2;
 
