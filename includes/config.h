@@ -135,10 +135,10 @@ int redirect_count = 0;
 int redirect_array[128];
 int redirect_array_index = 0;
 int redirect_start_index = -1;
-
 int redirect_token_index = -2;
 int redirect_char_index = -2;
-
+int stdin_fd = -1;
+int stdout_fd = -1;
 char filename[TOKEN_SIZE];
 
 extern char **environ;

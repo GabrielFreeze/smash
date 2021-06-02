@@ -3,14 +3,6 @@
 #include "includes/methods.c"
 
 
-
-//______________________________________TODO___________________________________
-/*
-
-
-
-*/
-
 int main(int argc, char** argv)
 {
     char* input;
@@ -20,8 +12,6 @@ int main(int argc, char** argv)
     int var_indices_len;
     bool interpret_vars_assign = false;
     setbuf(stdout, NULL);
-
-
     signal(SIGINT, sigint_handler);
 
     if (error = init_vars())
@@ -38,31 +28,44 @@ int main(int argc, char** argv)
     {   
         tokens = NULL;
         var_indices = NULL;
+        interpret_vars_assign = false;
 
+
+        //Get the input from a file, or else from the command prompt.
         if (read_from_file)
         {
             if(!(input = get_input_from_file(fp)))
             {
                 fclose(fp);
                 read_from_file = false;
+
+                if (stdin_fd > 0)
+                {
+                    dup2(stdin_fd, STDIN_FILENO);
+                    close(stdin_fd);
+                }
+
+                if (stdout_fd > 0)
+                {
+                    dup2(stdout_fd, STDOUT_FILENO);
+                    close(stdout_fd);
+                }
+
                 input = linenoise(prompt);
             }
         }
         else
             input = linenoise(prompt);
-  
+
         if (!input)
         {
             error = NULL_GIVEN_ERROR;
             goto end;
         }
 
-        interpret_vars_assign = false;
-        redirect_token_index = -2;
-        redirect_char_index = -2;
-
         if (input[0] != '\0' && input[0] != '/')
         {
+            //Split the input into tokens
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
@@ -74,7 +77,7 @@ int main(int argc, char** argv)
                     goto end;
             }
 
-            //The filenames for redirects should not be treated as additional arguments.
+            //The filenames for redirects should not be treated as additional arguments and are removed from tokens, and token_num is updated.
             //They served their purpose in specifiying the files for input and output, and hence are no longer needed.
             if (redirect_count) 
                 tokens[token_num = redirect_start_index] = NULL;
@@ -89,22 +92,23 @@ int main(int argc, char** argv)
             int i,j;
             for (i = 0, j = 0; i < token_num; i++)
             {
-                //Perform variable expansion, if applicable
+                //Perform variable expansion, if applicable.
                 if ((j < var_indices_len) && (i == var_indices[j].token_index) && (error = expand_vars(tokens, var_indices, var_indices_len, j++))) 
                     goto end;         
 
-                //Looks for any '=' within the token and assigns accordingly, if applicable
+                //Looks for any '=' within the token and assigns accordingly, if applicable.
                 if ((interpret_vars_assign) && (error = assign_vars(tokens, token_num, i)))
                     goto end;         
                     
             }
-
+            //Variables assignment operation was handled, so proceed to the next iteration.
             if (interpret_vars_assign)
                 goto end;
 
             //From this comment forward, the first argument the user entered is sure to be a command, and not a variable assignment statement.
             //The first token is the command, all other subsequent tokens are arguments to the command.
 
+            //If there is the word source while reading from a file raise an error
 
             if (read_from_file && contains_word(tokens[0],"source"))
                 {

@@ -572,22 +572,91 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
 {
     int i;
     int match = 1;
+    int fd_input;
+    int fd_output;
+    int fd_output_cat;
+
+
+    // Do the input and output have to be redirected?
+    if (redirect_input[0] && !read_from_file)
+    {
+        if ((fd_input = open(redirect_input, O_RDWR)) == -1)
+            perror("Error");
+        else
+        {
+            stdin_fd = dup(STDIN_FILENO);
+
+            dup2(fd_input,STDIN_FILENO);
+            close(fd_input);
+        }
+    }
+    
+    if (redirect_output[0] && !read_from_file)
+    {
+        if ((fd_output = open(redirect_output, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
+            perror("Error");
+        else
+        {
+            stdout_fd = dup(STDOUT_FILENO);
+
+            dup2(fd_output,STDOUT_FILENO);
+            close(fd_output);
+        }
+    }
+
+    if (redirect_output_cat[0] && !read_from_file)
+    {
+        if ((fd_output = open(redirect_output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
+            perror("Error");
+        else
+        {
+        stdout_fd = dup(STDOUT_FILENO);
+
+        dup2(fd_output,STDOUT_FILENO); 
+        close(fd_output);
+        }
+
+    }
+
+
+
     for (i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
     
     //It is an external command
     if (match)
     {
         if (error = execute_external(tokens, token_num))
+        {
+            dup2(stdin_fd, STDIN_FILENO);
+            close(stdin_fd);
+            dup2(stdout_fd, STDOUT_FILENO);
+            close(stdout_fd);
             return error;
+        }
     }
-
     else //It is an internal command
     {
         if (error = execute_internal(tokens+1, token_num-1, i))
+        {
+            dup2(stdin_fd, STDIN_FILENO);
+            close(stdin_fd);
+            dup2(stdout_fd, STDOUT_FILENO);
+            close(stdout_fd);
+
             return error;
+        }
         //The loop breaks upon finding a match, therefore i should point to the internal command
     }
-        
+
+    //Revert back to normal streams unless you are executing a 'source' operation
+    if (read_from_file)
+        return 0;
+
+    dup2(stdin_fd, STDIN_FILENO);
+    close(stdin_fd);
+    dup2(stdout_fd, STDOUT_FILENO);
+    close(stdout_fd);
+
     return 0;
 }
 int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
@@ -788,9 +857,7 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
     int status;
     int exitcode;
     char str[10];
-    int fd_input;
-    int fd_output;
-    int fd_output_cat;
+
 
     if ((pid = fork()) == -1)
     {
@@ -800,41 +867,6 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
 
     if (!pid)
     {
-
-        // Do the input and output have to be redirected?
-        if (redirect_input[0])
-        {
-            if ((fd_input = open(redirect_input, O_RDWR)) == -1)
-            {
-                perror("Error");
-                exit(EXIT_FAILURE);
-            }
-                dup2(fd_input,STDIN_FILENO);
-                close(fd_input);
-        }
-        
-        if (redirect_output[0])
-        {
-            if ((fd_output = open(redirect_output, O_CREAT | O_RDWR, S_IRWXU)) == -1)
-            {   
-                perror("Error");
-                exit(EXIT_FAILURE);
-            }
-                dup2(fd_output,STDOUT_FILENO);
-                close(fd_output);
-        }
-
-        if (redirect_output_cat[0])
-        {
-            if ((fd_output = open(redirect_output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
-            {
-                perror("Error");
-                exit(EXIT_FAILURE);
-            }
-            dup2(fd_output,STDOUT_FILENO); 
-            close(fd_output);
-
-        }
 
         execvp(args[0],args);  
         fprintf(stderr,"Could not find binary file %s\n",args[0]);
@@ -921,7 +953,7 @@ int contains_word(char* input, char* key)
     if (input_len < key_len)
         return 0;
 
-    for (int i = 0; i < input_len-key_len; i++)
+    for (int i = 0; i <= input_len-key_len; i++)
     {
         proceed = false;
 
@@ -966,4 +998,6 @@ void reset_redirect()
     redirect_output_cat[0] = 0;
     redirect_count = 0;
     redirect_start_index = -1;
+    redirect_token_index = -2;
+    redirect_char_index = -2;
 }
