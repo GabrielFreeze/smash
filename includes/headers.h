@@ -15,7 +15,7 @@
 
 int tokens_len(char* string);
 int char_type(char* string, int j);
-char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_indices_len);
+char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_index);
 bool is_deref(char* string, int upper);
 bool is_meta(char* string, int j);
 int handle_error();
@@ -44,4 +44,4 @@ bool is_full();
 int change_directory(char* value);
 char* get_input_from_file(FILE* fp);
 int contains_word(char* input, char* key);
-int redirect(char* tokens[TOKEN_SIZE], int redirect_state, int j);
+int handle_redirect(char* tokens[TOKEN_SIZE], int redirect_state, int j);

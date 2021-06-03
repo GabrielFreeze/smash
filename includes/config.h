@@ -14,6 +14,7 @@
 #define OUTPUT 6
 #define OUTPUT_CAT 7
 #define INPUT 8
+#define PIPE 9
 
 
 #define MEMORY_ERROR 1
@@ -96,7 +97,8 @@ char* errors[100] = {"_",
                     };
 
 
-typedef struct node_ {
+typedef struct node_
+{
     char* key;
     char* value;
     bool env;
@@ -125,18 +127,29 @@ FILE* fp;
 node* head;
 node* tail;
 bool read_from_file = false;
-int redirect_state = 0;
 
-char redirect_input[TOKEN_SIZE];
-char redirect_output[TOKEN_SIZE];
-char redirect_output_cat[TOKEN_SIZE];
+typedef struct redirect_
+{
+    char input[TOKEN_SIZE];
+    char output[TOKEN_SIZE];
+    char output_cat[TOKEN_SIZE];
+    int count;
+    int array[BUFSIZE];
+    int start;
+    int end;
+} redirect;
 
-int redirect_count = 0;
-int redirect_array[128];
-int redirect_array_index = 0;
-int redirect_start_index = -1;
-int redirect_token_index = -2;
-int redirect_char_index = -2;
+redirect r;
+typedef struct pipe_struct
+{   
+    int count;
+    int start;
+    int end;
+    int array[BUFSIZE];
+} pipey;
+
+pipey p;
+
 int stdin_fd = -1;
 int stdout_fd = -1;
 char filename[TOKEN_SIZE];

@@ -3,9 +3,14 @@
 #include "includes/methods.c"
 
 
-int main(int argc, char** argv)
+int main(void)
 {
     char* input;
+    r.start = -2;
+    r.end = -2;
+    p.start = -1;
+    p.end = -1;
+
     int token_num;
     char** tokens = NULL;
     tokenchar_pair* var_indices = NULL;
@@ -26,11 +31,6 @@ int main(int argc, char** argv)
 
     while (1)
     {   
-        tokens = NULL;
-        var_indices = NULL;
-        interpret_vars_assign = false;
-
-
         //Get the input from a file, or else from the command prompt.
         if (read_from_file)
         {
@@ -69,18 +69,24 @@ int main(int argc, char** argv)
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
+            // printf("%d\n",r.count);
+            // printf("%d\n",r.state);
+            //Seperate tokens using the pipe symbol as a delimiter.
+
+
+
             //For every redirect save the filename corresponding to it.
             //Note: The last instance of a redirect has priority over its predeccessors. 
-            for (int i = 0; i < redirect_count; i++) 
+            for (int i = 0; i < r.count; i++) 
             {
-                if (error = redirect(tokens, redirect_array[i], i))
+                if (error = handle_redirect(tokens, r.array[i], i))
                     goto end;
             }
 
             //The filenames for redirects should not be treated as additional arguments and are removed from tokens, and token_num is updated.
             //They served their purpose in specifiying the files for input and output, and hence are no longer needed.
-            if (redirect_count) 
-                tokens[token_num = redirect_start_index] = NULL;
+            if (r.count) 
+                tokens[token_num = r.start] = NULL;
 
             //If the first argument contains an =, then it means the user is doing variable assignment
             //...and the tokens should not be interpreted as [cmd arg0 arg1 ...], but just as a series of variable assignments.
@@ -127,6 +133,11 @@ int main(int argc, char** argv)
                 tokens_free(tokens,token_num);
                 var_indices_free(var_indices);
                 reset_redirect();
+                interpret_vars_assign = false;
+                p.start = -1;
+                p.end = -1;
+                p.count = 0;
+
                 
                 //If the user decides to delete the PROMPT variable, the default value should display.
                 node* current_node;

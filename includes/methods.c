@@ -7,8 +7,9 @@ int tokens_len(char* string)
     int count = 0;
     bool in_quotes = false;
     int type, prev_type = NONE;
-    int redirect_char = NONE;
     bool is_output_cat = false;
+
+    bool special_before = false;
 
     for (int i = 0; i < strlen(string); i++)
     {
@@ -17,40 +18,58 @@ int tokens_len(char* string)
         if (in_quotes && type != ESCAPE && type != VARIABLE && type != QUOTE)
             type = NORMAL;
         
+        if (type == NORMAL)
+            special_before = false;
+
         if (type == OUTPUT && is_output_cat)
             is_output_cat = false;
         else
         {
             is_output_cat = false;
 
+            if (type == PIPE)
+            {
+                if (special_before)
+                    return 0;
+
+                p.count++;
+                special_before = true;
+                p.end = (prev_type == META)? count:count+1;
+
+                if (p.start < 0)
+                    p.start = p.end;
+
+                if (!i || !p.start)
+                    return 0;
+
+                p.array[p.count-1] = count;
+            
+            }
+
             if (i != strlen(string)-1 && type == OUTPUT && char_type(string, i+1) == OUTPUT)
             {
                 type = OUTPUT_CAT;
                 is_output_cat = true;
             }
-
              //If the type is a redirect
-            if (type >= OUTPUT)
-            {
-                if (type == prev_type)
-                    return 0;
-
-                redirect_count++;
-            }
-            
 
             if (type >= OUTPUT)
             {
-                redirect_token_index = (prev_type == META)? count:count+1;
 
-                if (redirect_start_index == -1)
-                    redirect_start_index = redirect_token_index;
-
-                if (!i)
+                if (special_before)
                     return 0;
 
-                redirect_array[redirect_count-1] = type;
-                redirect_state = type;
+                r.count++;
+                special_before = true;
+                r.end = (prev_type == META)? count:count+1;
+
+                if (r.start < 0)
+                    r.start = r.end;
+
+                if (!i || !r.start)
+                    return 0;
+
+                r.array[r.count-1] = type;
             }
 
             if (type == QUOTE)
@@ -75,7 +94,8 @@ int tokens_len(char* string)
     if (type == NORMAL || type == QUOTE) 
         count++;
     
-    if  (in_quotes || redirect_token_index == count)
+    //There mustn't be an odd amount of quotes or a redirect or a pipe character in the last token.
+    if  (in_quotes || r.end == count || p.end == count)
         return 0;
     
     return count;
@@ -84,7 +104,6 @@ int tokens_len(char* string)
 }
 int char_type(char* string, int j)
 {
-
     if (j < 0){
         return NONE;
     }
@@ -132,7 +151,15 @@ int char_type(char* string, int j)
             return INPUT;
     }
 
-    return is_meta(string,j)? META:NORMAL; //If its none of the above, then its just a normal character.
+    if (string[j] == '|')
+    {
+        if (is_deref(string, j))
+            return NORMAL;
+        else
+            return PIPE;
+    }
+
+    return is_meta(string,j)? META:NORMAL;
 
 }
 bool is_meta(char* string, int j)
@@ -180,14 +207,14 @@ int handle_error()
     return 0;
     
 }
-char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_indices_len)
+char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_index)
 {  
-    
     int index = 0;
     int j = 0;
-    int var_index = 0;
     char** tokens;
     int max_length;
+    *length = 0;
+    *var_indices = NULL;
     tokenchar_pair* var_indices2;
     char current_token[TOKEN_SIZE];
     bool in_quotes = false;
@@ -220,15 +247,12 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
         prev_type = type;
         type = char_type(input, i);
 
-        if (j == TOKEN_SIZE)
+        if (j == TOKEN_SIZE-1)
         {
             error =  BUFFER_OVERFLOW_ERROR;
             return tokens;
         }
 
-        //Check if the redirect character is placed correctly
-        // Cannot be at  start or end
-        // Must have only one token follwing them, the name of the file.
 
         //Eg: $ followed by a META, or $""
         if (prev_type == VARIABLE && type != NORMAL && type != QUOTE)
@@ -241,8 +265,8 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
 
         if (type == VARIABLE)
         {
-            var_indices2[var_index].token_index = index;
-            var_indices2[var_index++].char_index = j;
+            var_indices2[*var_index].token_index = index;
+            var_indices2[(*var_index)++].char_index = j;
         }
 
         if (type == QUOTE)
@@ -300,7 +324,6 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
     }
     
     *var_indices = var_indices2;
-    *var_indices_len = var_index;
 
     return tokens;
 
@@ -311,10 +334,10 @@ int tokens_free(char** tokens, int length)
         return 0;
 
     for (int i = 0; i < length+1; i++)
-    {
         free(tokens[i]);
-    }
+
     free(tokens);
+    tokens = NULL;
     return 0;
 }
 int var_indices_free(tokenchar_pair* var_indices)
@@ -323,6 +346,7 @@ int var_indices_free(tokenchar_pair* var_indices)
         return 0;
     
     free(var_indices);
+    var_indices = NULL;
 
     return 0;
 }
@@ -575,13 +599,14 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
     int fd_input;
     int fd_output;
     int fd_output_cat;
+    error = 0;
 
 
     // Do the input and output have to be redirected?
-    if (redirect_input[0] && !read_from_file)
+    if (r.input[0] && !read_from_file)
     {
-        if ((fd_input = open(redirect_input, O_RDWR)) == -1)
-            perror("Error");
+        if ((fd_input = open(r.input, O_RDWR)) == -1)
+            error = SYSTEM_CALL_ERROR;
         else
         {
             stdin_fd = dup(STDIN_FILENO);
@@ -589,12 +614,11 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
             dup2(fd_input,STDIN_FILENO);
             close(fd_input);
         }
-    }
-    
-    if (redirect_output[0] && !read_from_file)
+    } 
+    if (r.output[0] && !read_from_file)
     {
-        if ((fd_output = open(redirect_output, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
-            perror("Error");
+        if ((fd_output = open(r.output, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
+            error = SYSTEM_CALL_ERROR;
         else
         {
             stdout_fd = dup(STDOUT_FILENO);
@@ -603,11 +627,10 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
             close(fd_output);
         }
     }
-
-    if (redirect_output_cat[0] && !read_from_file)
+    if (r.output_cat[0] && !read_from_file)
     {
-        if ((fd_output = open(redirect_output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
-            perror("Error");
+        if ((fd_output = open(r.output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
+            error = SYSTEM_CALL_ERROR;
         else
         {
         stdout_fd = dup(STDOUT_FILENO);
@@ -618,7 +641,8 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
 
     }
 
-
+    if (error)
+        goto end;
 
     for (i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
     
@@ -626,38 +650,31 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
     if (match)
     {
         if (error = execute_external(tokens, token_num))
-        {
-            dup2(stdin_fd, STDIN_FILENO);
-            close(stdin_fd);
-            dup2(stdout_fd, STDOUT_FILENO);
-            close(stdout_fd);
-            return error;
-        }
+            goto end;
     }
-    else //It is an internal command
-    {
-        if (error = execute_internal(tokens+1, token_num-1, i))
-        {
-            dup2(stdin_fd, STDIN_FILENO);
-            close(stdin_fd);
-            dup2(stdout_fd, STDOUT_FILENO);
-            close(stdout_fd);
 
-            return error;
-        }
-        //The loop breaks upon finding a match, therefore i should point to the internal command
-    }
+    //It is an internal command
+    //The loop breaks upon finding a match, therefore i should point to the internal command
+    else if (error = execute_internal(tokens+1, token_num-1, i))
+        goto end;
 
     //Revert back to normal streams unless you are executing a 'source' operation
     if (read_from_file)
         return 0;
 
-    dup2(stdin_fd, STDIN_FILENO);
-    close(stdin_fd);
+    end:
+    if (stdin_fd > 0)
+    {
+        dup2(stdin_fd, STDIN_FILENO);
+        close(stdin_fd);
+    }
+    if (stdout_fd > 0)
+    {
     dup2(stdout_fd, STDOUT_FILENO);
     close(stdout_fd);
+    }
 
-    return 0;
+    return error;
 }
 int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
 {
@@ -944,10 +961,8 @@ char* get_input_from_file(FILE* fp)
 }
 int contains_word(char* input, char* key)
 {
-
     int input_len = strlen(input);
     int key_len = strlen(key);
-    bool proceed = false;
     int j = 0;
 
     if (input_len < key_len)
@@ -955,8 +970,6 @@ int contains_word(char* input, char* key)
 
     for (int i = 0; i <= input_len-key_len; i++)
     {
-        proceed = false;
-
         for (j = 0; j < key_len; j++)
         {
             if (input[i+j] != key[j])
@@ -973,18 +986,18 @@ int contains_word(char* input, char* key)
 
 
 }
-int redirect(char** tokens, int redirect_state, int j)
+int handle_redirect(char** tokens, int state, int j)
 {
 
     //What redirect is it?
-    if (redirect_state == INPUT)
-        strcpy(redirect_input, tokens[redirect_start_index+j]);
+    if (state == INPUT)
+        strcpy(r.input, tokens[r.start+j]);
 
-    if (redirect_state == OUTPUT)
-        strcpy(redirect_output, tokens[redirect_start_index+j]);
+    if (state == OUTPUT)
+        strcpy(r.output, tokens[r.start+j]);
 
-    if (redirect_state == OUTPUT_CAT)
-        strcpy(redirect_output_cat, tokens[redirect_start_index+j]);
+    if (state == OUTPUT_CAT)
+        strcpy(r.output_cat, tokens[r.start+j]);
     
     return 0;
 
@@ -992,12 +1005,10 @@ int redirect(char** tokens, int redirect_state, int j)
 void sigint_handler(){};
 void reset_redirect()
 {
-    redirect_state = 0;
-    redirect_input[0] = 0;
-    redirect_output[0] = 0;
-    redirect_output_cat[0] = 0;
-    redirect_count = 0;
-    redirect_start_index = -1;
-    redirect_token_index = -2;
-    redirect_char_index = -2;
+    r.input[0] = 0;
+    r.output[0] = 0;
+    r.output_cat[0] = 0;
+    r.count = 0;
+    r.start = -2;
+    r.end = -2;
 }
