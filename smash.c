@@ -69,8 +69,9 @@ int main(void)
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
-            // printf("%d\n",r.count);
-            // printf("%d\n",r.state);
+            for (int i = 0; i < p.count; i++)
+                printf("%d\n",p.array[i]);
+
             //Seperate tokens using the pipe symbol as a delimiter.
 
 

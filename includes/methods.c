@@ -53,9 +53,8 @@ int tokens_len(char* string)
             }
              //If the type is a redirect
 
-            if (type >= OUTPUT)
+            if (type >= OUTPUT && type < PIPE)
             {
-
                 if (special_before)
                     return 0;
 
