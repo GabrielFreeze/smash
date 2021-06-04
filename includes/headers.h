@@ -45,3 +45,4 @@ int change_directory(char* value);
 char* get_input_from_file(FILE* fp);
 int contains_word(char* input, char* key);
 int handle_redirect(char* tokens[TOKEN_SIZE], int redirect_state, int j);
+int pipeline(char** tokens, int token_num);

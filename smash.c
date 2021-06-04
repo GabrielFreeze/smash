@@ -26,8 +26,8 @@ int main(void)
     }
     
     char* prompt;
-    char line[BUFSIZE];
     prompt = node_search("PROMPT")->value;
+    char line[BUFSIZE];
 
     while (1)
     {   
@@ -69,33 +69,18 @@ int main(void)
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
-            for (int i = 0; i < p.count; i++)
-                printf("%d\n",p.array[i]);
+            // for (int i = 0; i < p.count+1; i++)
+            //     printf("%d\n",r.chunk_array[i]->input);
 
-            //Seperate tokens using the pipe symbol as a delimiter.
-
-
-
-            //For every redirect save the filename corresponding to it.
-            //Note: The last instance of a redirect has priority over its predeccessors. 
-            for (int i = 0; i < r.count; i++) 
-            {
-                if (error = handle_redirect(tokens, r.array[i], i))
-                    goto end;
-            }
-
-            //The filenames for redirects should not be treated as additional arguments and are removed from tokens, and token_num is updated.
-            //They served their purpose in specifiying the files for input and output, and hence are no longer needed.
-            if (r.count) 
-                tokens[token_num = r.start] = NULL;
+            // for (int i = 0; i < p.count; i++)
+            //     printf("Pipe at this token indices:%d\n",p.array[i]);
 
             //If the first argument contains an =, then it means the user is doing variable assignment
             //...and the tokens should not be interpreted as [cmd arg0 arg1 ...], but just as a series of variable assignments.
             if (contains_char(tokens[0],'=') != -1) 
                 interpret_vars_assign = true;
             
-            //Loop through all tokens, performing variable expansion and assignment per token.
-            
+            //Loop through all tokens, performing variable expansion and assignment per token. 
             int i,j;
             for (i = 0, j = 0; i < token_num; i++)
             {
@@ -112,6 +97,33 @@ int main(void)
             if (interpret_vars_assign)
                 goto end;
 
+            if (p.count)
+            {
+                printf("Piping\n");
+                error = pipeline(tokens, token_num);
+                wait(NULL);
+                exit(0);
+            }
+        
+
+            //For every redirect save the filename corresponding to it.
+            //Note: The last instance of a redirect has priority over its predeccessors. 
+            for (int i = 0; i < r.count; i++) 
+            {
+                if (error = handle_redirect(tokens, r.array[i], i))
+                    goto end;
+            }
+
+
+            int token_num_new = token_num;
+            if (r.count)
+            {
+                tokens[r.start] = NULL;
+                token_num_new = r.start;
+            } 
+            //The filenames for redirects should not be treated as additional arguments and are removed from tokens, and token_num is updated.
+            //They served their purpose in specifiying the files for input and output, and hence are no longer needed.
+
             //From this comment forward, the first argument the user entered is sure to be a command, and not a variable assignment statement.
             //The first token is the command, all other subsequent tokens are arguments to the command.
 
@@ -125,7 +137,7 @@ int main(void)
                     goto end;
                 }
 
-            if (error = tokens_parse(tokens, token_num))
+            if (error = tokens_parse(tokens, token_num_new))
                 goto end;
             
 

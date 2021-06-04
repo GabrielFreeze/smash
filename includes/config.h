@@ -128,6 +128,13 @@ node* head;
 node* tail;
 bool read_from_file = false;
 
+typedef struct red_
+{
+    int input;
+    int output;
+    bool cat;
+} red[BUFSIZE];
+
 typedef struct redirect_
 {
     char input[TOKEN_SIZE];
@@ -135,9 +142,17 @@ typedef struct redirect_
     char output_cat[TOKEN_SIZE];
     int count;
     int array[BUFSIZE];
+    red chunk_array[BUFSIZ];
+    int chunk_array_counter;
     int start;
     int end;
 } redirect;
+
+
+
+red k_array;
+
+
 
 redirect r;
 typedef struct pipe_struct

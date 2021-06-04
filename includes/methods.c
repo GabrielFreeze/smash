@@ -43,6 +43,7 @@ int tokens_len(char* string)
                     return 0;
 
                 p.array[p.count-1] = count;
+
             
             }
 
@@ -67,8 +68,24 @@ int tokens_len(char* string)
 
                 if (!i || !r.start)
                     return 0;
+                
+                if (p.count >= BUFSIZE-1)
+                    return 0;
 
                 r.array[r.count-1] = type;
+                if (type == INPUT)
+                    r.chunk_array[p.count]->input = r.end;
+                if (type == OUTPUT)
+                {
+                    r.chunk_array[p.count]->output = r.end;
+                    r.chunk_array[p.count]->cat = false;
+                }
+                if (type == OUTPUT_CAT)
+                {
+                    r.chunk_array[p.count]->output = r.end;
+                    r.chunk_array[p.count]->cat = true;
+
+                }
             }
 
             if (type == QUOTE)
@@ -385,6 +402,16 @@ int init_vars(void)
     if (!node_search("EXITCODE") && (error = node_insert("EXITCODE", "NONE", true)))
         return error;
 
+
+    char shell[BUFSIZE];
+    int num_bytes;
+    if (num_bytes = readlink("/proc/self/exe", shell, BUFSIZE-1) == -1)
+        return NODE_ASSIGNMENT_ERROR;
+    
+    shell[num_bytes] = '\0';
+
+    if (error = node_insert("SHELL", shell ,true))
+        return error;
     //______________________________________________________________________
 
     //Any changes to PWD (env), should be mirrored to CWD (env), which is then mirrored to CWD (shell).
@@ -412,18 +439,6 @@ int init_vars(void)
     //______________________________________________________________________
 
     //Renew the location of the program executable
-
-    char shell[BUFSIZE];
-    
-    //readlink does not append a null terminator to shell
-    for (int i = 0; i < BUFSIZE; i++)
-        shell[i] = '\0';
-    
-    if (readlink("/proc/self/exe", shell, BUFSIZE) == -1)
-        return NODE_ASSIGNMENT_ERROR;
-
-    if (error = node_insert("SHELL", shell ,true))
-        return error;
 
 
     return 0;
@@ -599,7 +614,6 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
     int fd_output;
     int fd_output_cat;
     error = 0;
-
 
     // Do the input and output have to be redirected?
     if (r.input[0] && !read_from_file)
@@ -881,13 +895,11 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
         return FORK_ERROR;
     }
 
-    if (!pid)
+    if (!pid) // Child Process
     {
-
         execvp(args[0],args);  
         fprintf(stderr,"Could not find binary file %s\n",args[0]);
         exit(EXIT_FAILURE);
-        
     }
 
 
@@ -1010,4 +1022,63 @@ void reset_redirect()
     r.count = 0;
     r.start = -2;
     r.end = -2;
+    r.chunk_array_counter = 0;
+}
+int pipeline(char** tokens, int token_num)
+{
+    int fd[p.count*2];
+    int* current_fd = fd;
+    int* previous_fd;
+    pid_t pid;
+
+    char* args[BUFSIZE];
+    char* arg_buffer[TOKEN_SIZE];
+
+
+
+    for (int i = 0; i < p.count+1; i++, previous_fd = current_fd, current_fd += 2)
+    {
+
+        strcpy(args[0],"ls");
+
+        if (i < p.count)
+            pipe(current_fd);
+
+         // Fork Failed
+        if ((pid = fork()) < 0)
+        {
+            perror("Error");
+            exit(1);
+        }
+        else if (!pid) // Child Process
+        {
+            if (i < p.count)
+            {
+                close(current_fd[0]);
+                dup2(current_fd[1], STDOUT_FILENO);
+                close(current_fd[1]);
+
+            }
+
+            if(i)
+            {
+                close(previous_fd[1]);
+                dup2(previous_fd[0],STDIN_FILENO);
+                close(previous_fd[0]);
+            }
+           
+            execvp(args[0],args);
+            perror("Error");
+            exit(1);
+        }
+
+        if (i) // The first parent process
+        {
+            close(previous_fd[0]);
+            close(previous_fd[1]);
+        }
+
+    }
+
+    return 0;
 }

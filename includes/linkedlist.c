@@ -3,7 +3,7 @@ int vars_len = 0;
 
 int node_insert(char* key, char* value, bool env)
 {
-    node* new_node;
+    node* new_node ;
     node* current_node;
 
     //If there already exists a node with that key, remove it.
@@ -65,6 +65,7 @@ int node_delete(node* current_node)
       current_node->next->prev = current_node->prev; //The next node will skip the current_node and point to the one before it.
 
     free(current_node);
+    current_node = NULL;
     vars_len--;
 
     return 0;
