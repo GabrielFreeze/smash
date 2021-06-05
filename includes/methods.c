@@ -33,6 +33,10 @@ int tokens_len(char* string)
                     return 0;
 
                 p.count++;
+            
+                r.chunk_array[p.count]->output = 0;
+                r.chunk_array[p.count]->input = 0;
+            
                 special_before = true;
                 p.end = (prev_type == META)? count:count+1;
 
@@ -42,9 +46,8 @@ int tokens_len(char* string)
                 if (!i || !p.start)
                     return 0;
 
-                p.array[p.count-1] = count;
+                p.array[p.count-1] = p.end;
 
-            
             }
 
             if (i != strlen(string)-1 && type == OUTPUT && char_type(string, i+1) == OUTPUT)
@@ -52,8 +55,10 @@ int tokens_len(char* string)
                 type = OUTPUT_CAT;
                 is_output_cat = true;
             }
-             //If the type is a redirect
 
+           
+
+             //If the type is a redirect
             if (type >= OUTPUT && type < PIPE)
             {
                 if (special_before)
@@ -73,6 +78,9 @@ int tokens_len(char* string)
                     return 0;
 
                 r.array[r.count-1] = type;
+
+                
+                
                 if (type == INPUT)
                     r.chunk_array[p.count]->input = r.end;
                 if (type == OUTPUT)
@@ -80,6 +88,7 @@ int tokens_len(char* string)
                     r.chunk_array[p.count]->output = r.end;
                     r.chunk_array[p.count]->cat = false;
                 }
+                r.chunk_array[p.count]->cat = false;
                 if (type == OUTPUT_CAT)
                 {
                     r.chunk_array[p.count]->output = r.end;
@@ -114,6 +123,7 @@ int tokens_len(char* string)
     if  (in_quotes || r.end == count || p.end == count)
         return 0;
     
+    p.array[p.count] = count;
     return count;
 
     
@@ -1023,6 +1033,8 @@ void reset_redirect()
     r.start = -2;
     r.end = -2;
     r.chunk_array_counter = 0;
+    r.chunk_array[0]->output = 0;
+    r.chunk_array[0]->input = 0;
 }
 int pipeline(char** tokens, int token_num)
 {
@@ -1031,54 +1043,64 @@ int pipeline(char** tokens, int token_num)
     int* previous_fd;
     pid_t pid;
 
-    char* args[BUFSIZE];
-    char* arg_buffer[TOKEN_SIZE];
-
-
 
     for (int i = 0; i < p.count+1; i++, previous_fd = current_fd, current_fd += 2)
     {
+        
+        int argc = 0;
+        char* args[BUFSIZE];
 
-        strcpy(args[0],"ls");
-
+        for (int j = new_start; j < p.array[i]; j++)
+            args[argc++] = tokens[j];
+        args[argc] = NULL;
+        
+        new_start = p.array[i]; // For the next iteration
+              
         if (i < p.count)
             pipe(current_fd);
 
-         // Fork Failed
-        if ((pid = fork()) < 0)
+        pid_t pid = fork();
+         
+        if (pid == -1)
         {
             perror("Error");
             exit(1);
         }
-        else if (!pid) // Child Process
+        else if (pid == 0) // Child Process
         {
             if (i < p.count)
             {
                 close(current_fd[0]);
                 dup2(current_fd[1], STDOUT_FILENO);
                 close(current_fd[1]);
-
             }
 
-            if(i)
+            if(i > 0)
             {
                 close(previous_fd[1]);
                 dup2(previous_fd[0],STDIN_FILENO);
                 close(previous_fd[0]);
             }
            
-            execvp(args[0],args);
+            execvp(args[0], args);
             perror("Error");
             exit(1);
         }
 
-        if (i) // The first parent process
+        if (i >= 1) // The first parent process
         {
             close(previous_fd[0]);
             close(previous_fd[1]);
         }
-
+        wait(NULL); // Handle wait
     }
 
     return 0;
+}
+void reset_pipe()
+{
+    new_start = 0;
+    p.count = 0;
+    p.start = -1;
+    p.end = -1;
 }

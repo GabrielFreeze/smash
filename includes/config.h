@@ -164,7 +164,7 @@ typedef struct pipe_struct
 } pipey;
 
 pipey p;
-
+int new_start;
 int stdin_fd = -1;
 int stdout_fd = -1;
 char filename[TOKEN_SIZE];

@@ -69,11 +69,16 @@ int main(void)
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
-            // for (int i = 0; i < p.count+1; i++)
-            //     printf("%d\n",r.chunk_array[i]->input);
+            for (int i = 0; i < p.count+1; i++)
+            {
+                printf("Input index: %d\t",r.chunk_array[i]->input);
+                printf("Output index: %d\n",r.chunk_array[i]->output);
+            }
 
-            // for (int i = 0; i < p.count; i++)
+            // for (int i = 0; i < p.count+1; i++)
             //     printf("Pipe at this token indices:%d\n",p.array[i]);
+            // printf("p.start: [%d]\n",p.start);
+            // printf("p.end: [%d]\n",p.end);
 
             //If the first argument contains an =, then it means the user is doing variable assignment
             //...and the tokens should not be interpreted as [cmd arg0 arg1 ...], but just as a series of variable assignments.
@@ -99,10 +104,8 @@ int main(void)
 
             if (p.count)
             {
-                printf("Piping\n");
                 error = pipeline(tokens, token_num);
-                wait(NULL);
-                exit(0);
+                goto end;
             }
         
 
@@ -146,10 +149,9 @@ int main(void)
                 tokens_free(tokens,token_num);
                 var_indices_free(var_indices);
                 reset_redirect();
+                reset_pipe();
                 interpret_vars_assign = false;
-                p.start = -1;
-                p.end = -1;
-                p.count = 0;
+
 
                 
                 //If the user decides to delete the PROMPT variable, the default value should display.
