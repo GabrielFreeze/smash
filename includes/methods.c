@@ -79,7 +79,8 @@ int tokens_len(char* string)
 
                 r.array[r.count-1] = type;
 
-                
+                if (r.chunk_array[p.count]->start < 0)
+                    r.chunk_array[p.count]->start = r.end;
                 
                 if (type == INPUT)
                     r.chunk_array[p.count]->input = r.end;
@@ -1035,6 +1036,7 @@ void reset_redirect()
     r.chunk_array_counter = 0;
     r.chunk_array[0]->output = 0;
     r.chunk_array[0]->input = 0;
+    r.chunk_array[0]->start = -1;
 }
 int pipeline(char** tokens, int token_num)
 {
@@ -1068,14 +1070,18 @@ int pipeline(char** tokens, int token_num)
         }
         else if (pid == 0) // Child Process
         {
+
+
+
+            // Hooks output based on pipeline
             if (i < p.count)
             {
                 close(current_fd[0]);
                 dup2(current_fd[1], STDOUT_FILENO);
                 close(current_fd[1]);
             }
-
-            if(i > 0)
+            // Hooks input based on pipeline
+            if (i > 0)
             {
                 close(previous_fd[1]);
                 dup2(previous_fd[0],STDIN_FILENO);

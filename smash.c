@@ -153,7 +153,6 @@ int main(void)
                 interpret_vars_assign = false;
 
 
-                
                 //If the user decides to delete the PROMPT variable, the default value should display.
                 node* current_node;
                 if (!(current_node = node_search("PROMPT")))
