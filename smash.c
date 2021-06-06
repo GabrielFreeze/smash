@@ -69,17 +69,6 @@ int main(void)
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
-            // for (int i = 0; i < p.count+1; i++)
-            // {
-            //     printf("Input index: %d\t",r.chunk_array[i]->input);
-            //     printf("Output index: %d\n",r.chunk_array[i]->output);
-            // }
-
-            // for (int i = 0; i < p.count+1; i++)
-            //     printf("Pipe at this token indices:%d\n",p.array[i]);
-            // printf("p.start: [%d]\n",p.start);
-            // printf("p.end: [%d]\n",p.end);
-
             //If the first argument contains an =, then it means the user is doing variable assignment
             //...and the tokens should not be interpreted as [cmd arg0 arg1 ...], but just as a series of variable assignments.
             if (contains_char(tokens[0],'=') != -1) 
@@ -102,28 +91,63 @@ int main(void)
             if (interpret_vars_assign)
                 goto end;
 
-            if (p.count)
+            // if (p.count)
+            // {
+            //     error = pipeline(tokens, token_num);
+            //     goto end;
+            // }
+        
+            if (read_from_file && contains_word(tokens[0],"source"))
             {
-                error = pipeline(tokens, token_num);
+                fclose(fp);
+                read_from_file = false;
+                fprintf(stderr,"Nested source statements are not supported.\n");
                 goto end;
             }
-        
 
-            //For every redirect save the filename corresponding to it.
-            //Note: The last instance of a redirect has priority over its predeccessors. 
-            for (int i = 0; i < r.count; i++) 
+            //If there are pipes then it its surely not an internal command.
+            if (p.count)
             {
-                if (error = handle_redirect(tokens, r.array[i], i))
+                if (error = pipeline(tokens, token_num))
                     goto end;
             }
-
-
-            int token_num_new = token_num;
-            if (r.count)
+            //Check if the first command is an internal command or not
+            else
             {
-                tokens[r.start] = NULL;
-                token_num_new = r.start;
-            } 
+                int match = 1;
+                int j;
+                for (j = 0; j < internal_commands_len && (match = strcmp(tokens[0],internal_commands[j])); j++);
+        
+                //It is an external command.
+                if (match)
+                {
+                    if (error = pipeline(tokens, token_num))
+                        goto end;
+                }
+                //It is an internal command.
+                else
+                {
+                    //Configure redirects
+                    for (int i = 0; i < r.count; i++) 
+                    {
+                        if (error = handle_redirect(tokens, r.array[i], i))
+                            goto end;
+                    }
+
+                    if (error = hook_streams())
+                        goto end;
+
+                    if (error = execute_internal(tokens+1, token_num-1, j))
+                        goto end;
+
+                    reset_streams();
+
+                } 
+            }
+            //For singular commands with no pipes.
+            
+            // if (error = execute_internal(tokens+1, token_num-1, j))
+
             //The filenames for redirects should not be treated as additional arguments and are removed from tokens, and token_num is updated.
             //They served their purpose in specifiying the files for input and output, and hence are no longer needed.
 
@@ -132,16 +156,10 @@ int main(void)
 
             //If there is the word source while reading from a file raise an error
 
-            if (read_from_file && contains_word(tokens[0],"source"))
-                {
-                    fclose(fp);
-                    read_from_file = false;
-                    fprintf(stderr,"Nested source statements are not supported.\n");
-                    goto end;
-                }
 
-            if (error = tokens_parse(tokens, token_num_new))
-                goto end;
+
+            // if (error = tokens_parse(tokens, token_num))
+            //     goto end;
             
 
             end:

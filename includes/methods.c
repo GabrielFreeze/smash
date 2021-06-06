@@ -8,7 +8,7 @@ int tokens_len(char* string)
     bool in_quotes = false;
     int type, prev_type = NONE;
     bool is_output_cat = false;
-
+    // bool redirect_set = false;
     bool special_before = false;
 
     for (int i = 0; i < strlen(string); i++)
@@ -36,8 +36,10 @@ int tokens_len(char* string)
             
                 r.chunk_array[p.count]->output = 0;
                 r.chunk_array[p.count]->input = 0;
+                r.chunk_array[p.count]->redirect_count = 0;
             
                 special_before = true;
+                // redirect_set = false;
                 p.end = (prev_type == META)? count:count+1;
 
                 if (p.start < 0)
@@ -45,8 +47,9 @@ int tokens_len(char* string)
 
                 if (!i || !p.start)
                     return 0;
-
+                
                 p.array[p.count-1] = p.end;
+                p.array[p.count] = 0;
 
             }
 
@@ -78,9 +81,13 @@ int tokens_len(char* string)
                     return 0;
 
                 r.array[r.count-1] = type;
-
-                if (!r.chunk_array[p.count]->command_stop)
-                    r.chunk_array[p.count]->command_stop = r.end;
+                r.chunk_array[p.count]->redirect_count ++;
+                // if (!redirect_set)
+                // {
+                // p.array[p.count] = r.end;
+                //     redirect_set = true;
+                // }
+                
                 
                 if (type == INPUT)
                     r.chunk_array[p.count]->input = r.end;
@@ -617,7 +624,7 @@ int contains_char(char* string, char a)
 
     return -1;
 }
-int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
+int tokens_parse(char* tokens[TOKEN_SIZE], int token_num, int j)
 {
     int i;
     int match = 1;
@@ -634,6 +641,7 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
         else
         {
             stdin_fd = dup(STDIN_FILENO);
+            fprintf(stderr,"%d\n",fd_input);
 
             dup2(fd_input,STDIN_FILENO);
             close(fd_input);
@@ -668,18 +676,18 @@ int tokens_parse(char* tokens[TOKEN_SIZE], int token_num)
     if (error)
         goto end;
 
-    for (i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
+    // for (i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
     
-    //It is an external command
-    if (match)
-    {
-        if (error = execute_external(tokens, token_num))
-            goto end;
-    }
+    // //It is an external command
+    // if (match)
+    // {
+    //     if (error = pipeline(tokens, token_num))
+    //         goto end;
+    // }
 
     //It is an internal command
     //The loop breaks upon finding a match, therefore i should point to the internal command
-    else if (error = execute_internal(tokens+1, token_num-1, i))
+    if (error = execute_internal(tokens+1, token_num-1, j))
         goto end;
 
     //Revert back to normal streams unless you are executing a 'source' operation
@@ -921,17 +929,13 @@ int execute_external(char* args[TOKEN_SIZE], int arg_num)
         { 
             //Updates node_edit with the exitcode, if any.
 
-            if ((exitcode = WEXITSTATUS(status)))
-            {
-                sprintf(str, "%d", exitcode);
+            exitcode = WEXITSTATUS(status);
+            sprintf(str, "%d", exitcode);
 
-                if (error = node_edit(node_search("EXITCODE"), str)) 
-                    return error;
-            }       
+            if (error = node_edit(node_search("EXITCODE"), str)) 
+                return error;
                           
-        } 
-        else 
-            printf("\nChild process did not terminate normally\n");            
+        }          
 
     }
 
@@ -1036,7 +1040,7 @@ void reset_redirect()
     r.chunk_array_counter = 0;
     r.chunk_array[0]->output = 0;
     r.chunk_array[0]->input = 0;
-    r.chunk_array[0]->command_stop = 0;
+    r.chunk_array[0]->redirect_count = 0;
 }
 int pipeline(char** tokens, int token_num)
 {
@@ -1044,15 +1048,20 @@ int pipeline(char** tokens, int token_num)
     int* current_fd = fd;
     int* previous_fd;
     pid_t pid;
-
+    int output_file;
+    int fd_output;
+    int input_file;
+    int fd_input;
+    int status;
+    int exitcode;
+    char str[10];
 
     for (int i = 0; i < p.count+1; i++, previous_fd = current_fd, current_fd += 2)
     {
-        
         int argc = 0;
         char* args[BUFSIZE];
 
-        for (int j = new_start; j < r.chunk_array[i]->command_stop; j++)
+        for (int j = new_start; j < p.array[i]-r.chunk_array[i]->redirect_count; j++)
             args[argc++] = tokens[j];
         args[argc] = NULL;
         
@@ -1064,22 +1073,32 @@ int pipeline(char** tokens, int token_num)
         pid_t pid = fork();
          
         if (pid == -1)
-        {
-            perror("Error");
-            exit(1);
-        }
+            return SYSTEM_CALL_ERROR;
         else if (pid == 0) // Child Process
         {
 
-
-
-            // Hooks output based on pipeline
+            // Hook output based on previous redirect
             if (i < p.count)
             {
                 close(current_fd[0]);
                 dup2(current_fd[1], STDOUT_FILENO);
                 close(current_fd[1]);
+                
             }
+            //Hook output if the user specified a file
+            if (output_file = r.chunk_array[i]->output)
+            {
+                //Opens file in rw or a+
+                if ((fd_output = open(tokens[output_file], r.chunk_array[i]->cat? (O_CREAT | O_APPEND | O_RDWR):(O_CREAT | O_RDWR | O_TRUNC), S_IRWXU)) < 0)
+                {
+                    perror("File Error");
+                    exit(1);
+                }
+
+                dup2(fd_output,STDOUT_FILENO);
+                close(fd_output); 
+            }
+            
             // Hooks input based on pipeline
             if (i > 0)
             {
@@ -1087,9 +1106,21 @@ int pipeline(char** tokens, int token_num)
                 dup2(previous_fd[0],STDIN_FILENO);
                 close(previous_fd[0]);
             }
-           
+            // Hooks input if the user specified a file
+            if (input_file = r.chunk_array[i]->input)
+            {
+                if ((fd_input = open(tokens[input_file], O_RDWR)) < 0)
+                {
+                    perror("File Error");
+                    exit(1);
+                }
+                fprintf(stderr,"%d\n",fd_input);
+                dup2(fd_input, STDIN_FILENO);
+                close(fd_input);
+            }
+            
             execvp(args[0], args);
-            perror("Error");
+            perror("Exec Error");
             exit(1);
         }
 
@@ -1098,7 +1129,18 @@ int pipeline(char** tokens, int token_num)
             close(previous_fd[0]);
             close(previous_fd[1]);
         }
-        wait(NULL); // Handle wait
+
+        if (wait(&status) > 0 && WIFEXITED(status))
+        { 
+            exitcode = WEXITSTATUS(status);
+            //Converts int to string
+            sprintf(str, "%d", exitcode);
+
+            //Stores exitcode in shell variable EXITCODE
+            if (error = node_edit(node_search("EXITCODE"), str)) 
+                return error;                
+        } 
+
     }
 
     return 0;
@@ -1109,4 +1151,76 @@ void reset_pipe()
     p.count = 0;
     p.start = -1;
     p.end = -1;
+}
+int hook_streams()
+{
+    int match = 1;
+    int fd_input;
+    int fd_output;
+    int fd_output_cat;
+    error = 0;
+
+    // Do the input and output have to be redirected?
+    // Opens files, links them with respective stream.
+
+
+    if (r.input[0] && !read_from_file)
+    {
+        if ((fd_input = open(r.input, O_RDWR)) == -1)
+            error = SYSTEM_CALL_ERROR;
+        else
+        {
+            stdin_fd = dup(STDIN_FILENO);
+            fprintf(stderr,"%d\n",fd_input);
+
+            dup2(fd_input,STDIN_FILENO);
+            close(fd_input);
+        }
+    } 
+    if (r.output[0] && !read_from_file)
+    {
+        if ((fd_output = open(r.output, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
+            error = SYSTEM_CALL_ERROR;
+        else
+        {
+            stdout_fd = dup(STDOUT_FILENO);
+
+            dup2(fd_output,STDOUT_FILENO);
+            close(fd_output);
+        }
+    }
+    if (r.output_cat[0] && !read_from_file)
+    {
+        if ((fd_output = open(r.output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
+            error = SYSTEM_CALL_ERROR;
+        else
+        {
+        stdout_fd = dup(STDOUT_FILENO);
+
+        dup2(fd_output,STDOUT_FILENO); 
+        close(fd_output);
+        }
+
+    }
+
+    if (error)
+    {
+        reset_streams();
+        return error;
+    }
+}
+int reset_streams()
+{
+    if (stdin_fd > 0)
+    {
+        dup2(stdin_fd, STDIN_FILENO);
+        close(stdin_fd);
+    }
+    if (stdout_fd > 0)
+    {
+        dup2(stdout_fd, STDOUT_FILENO);
+        close(stdout_fd);
+    }
+    
+    return 0;
 }

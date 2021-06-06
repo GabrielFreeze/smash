@@ -133,7 +133,7 @@ typedef struct red_
     int input;
     int output;
     bool cat;
-    int command_stop;
+    int redirect_count;
 } red[BUFSIZE];
 
 typedef struct redirect_

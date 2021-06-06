@@ -32,7 +32,7 @@ int node_edit(node* current_node, char* value);
 int node_export(node* current_node);
 int assign_vars(char** tokens, int length, int i);
 int contains_char(char* string, char a);
-int tokens_parse(char* tokens[TOKEN_SIZE], int token_num);
+int tokens_parse(char* tokens[TOKEN_SIZE], int token_num, int j);
 int str_to_int(int* value, char* string);
 int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j);
 int execute_external(char* args[TOKEN_SIZE], int arg_num);
