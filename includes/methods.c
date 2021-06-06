@@ -79,8 +79,8 @@ int tokens_len(char* string)
 
                 r.array[r.count-1] = type;
 
-                if (r.chunk_array[p.count]->start < 0)
-                    r.chunk_array[p.count]->start = r.end;
+                if (!r.chunk_array[p.count]->command_stop)
+                    r.chunk_array[p.count]->command_stop = r.end;
                 
                 if (type == INPUT)
                     r.chunk_array[p.count]->input = r.end;
@@ -1036,7 +1036,7 @@ void reset_redirect()
     r.chunk_array_counter = 0;
     r.chunk_array[0]->output = 0;
     r.chunk_array[0]->input = 0;
-    r.chunk_array[0]->start = -1;
+    r.chunk_array[0]->command_stop = 0;
 }
 int pipeline(char** tokens, int token_num)
 {
@@ -1052,7 +1052,7 @@ int pipeline(char** tokens, int token_num)
         int argc = 0;
         char* args[BUFSIZE];
 
-        for (int j = new_start; j < p.array[i]; j++)
+        for (int j = new_start; j < r.chunk_array[i]->command_stop; j++)
             args[argc++] = tokens[j];
         args[argc] = NULL;
         

@@ -69,11 +69,11 @@ int main(void)
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
-            for (int i = 0; i < p.count+1; i++)
-            {
-                printf("Input index: %d\t",r.chunk_array[i]->input);
-                printf("Output index: %d\n",r.chunk_array[i]->output);
-            }
+            // for (int i = 0; i < p.count+1; i++)
+            // {
+            //     printf("Input index: %d\t",r.chunk_array[i]->input);
+            //     printf("Output index: %d\n",r.chunk_array[i]->output);
+            // }
 
             // for (int i = 0; i < p.count+1; i++)
             //     printf("Pipe at this token indices:%d\n",p.array[i]);
