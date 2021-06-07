@@ -117,7 +117,7 @@ int main(void)
                 int match = 1;
                 int j;
                 for (j = 0; j < internal_commands_len && (match = strcmp(tokens[0],internal_commands[j])); j++);
-        
+
                 //It is an external command.
                 if (match)
                 {
