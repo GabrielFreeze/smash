@@ -6,8 +6,8 @@
 int main(void)
 {
     char* input;
-    r.start = -2;
-    r.end = -2;
+    r.start = 0;
+    r.end = 0;
     p.start = -1;
     p.end = -1;
 
@@ -17,8 +17,7 @@ int main(void)
     int var_indices_len;
     bool interpret_vars_assign = false;
     setbuf(stdout, NULL);
-    signal(SIGINT, sigint_handler);
-
+    signal(SIGINT, SIG_IGN);
     if (error = init_vars())
     {
         handle_error();
@@ -91,11 +90,6 @@ int main(void)
             if (interpret_vars_assign)
                 goto end;
 
-            // if (p.count)
-            // {
-            //     error = pipeline(tokens, token_num);
-            //     goto end;
-            // }
         
             if (read_from_file && contains_word(tokens[0],"source"))
             {
@@ -108,7 +102,7 @@ int main(void)
             //If there are pipes then it its surely not an internal command.
             if (p.count)
             {
-                if (error = pipeline(tokens, token_num))
+                if (error = execute_external(tokens, token_num))
                     goto end;
             }
             //Check if the first command is an internal command or not
@@ -121,7 +115,7 @@ int main(void)
                 //It is an external command.
                 if (match)
                 {
-                    if (error = pipeline(tokens, token_num))
+                    if (error = execute_external(tokens, token_num))
                         goto end;
                 }
                 //It is an internal command.
@@ -134,38 +128,28 @@ int main(void)
                             goto end;
                     }
 
+                    //Trims the tokens refering to files, and updates token_num accordingly.
+                    if(r.start)
+                        tokens[token_num = r.start] = NULL;
+                    
                     if (error = hook_streams())
                         goto end;
 
                     if (error = execute_internal(tokens+1, token_num-1, j))
+                    {
+                        reset_streams();
                         goto end;
+                    }
 
                     reset_streams();
 
                 } 
             }
-            //For singular commands with no pipes.
-            
-            // if (error = execute_internal(tokens+1, token_num-1, j))
-
-            //The filenames for redirects should not be treated as additional arguments and are removed from tokens, and token_num is updated.
-            //They served their purpose in specifiying the files for input and output, and hence are no longer needed.
-
-            //From this comment forward, the first argument the user entered is sure to be a command, and not a variable assignment statement.
-            //The first token is the command, all other subsequent tokens are arguments to the command.
-
-            //If there is the word source while reading from a file raise an error
-
-
-
-            // if (error = tokens_parse(tokens, token_num))
-            //     goto end;
-            
 
             end:
                 handle_error();
-                tokens_free(tokens,token_num);
-                var_indices_free(var_indices);
+                tokens_free(tokens,&token_num);
+                var_indices_free(var_indices,&var_indices_len);
                 reset_redirect();
                 reset_pipe();
                 interpret_vars_assign = false;

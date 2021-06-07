@@ -71,7 +71,7 @@ int tokens_len(char* string)
                 special_before = true;
                 r.end = (prev_type == META)? count:count+1;
 
-                if (r.start < 0)
+                if (!r.start)
                     r.start = r.end;
 
                 if (!i || !r.start)
@@ -82,11 +82,6 @@ int tokens_len(char* string)
 
                 r.array[r.count-1] = type;
                 r.chunk_array[p.count]->redirect_count ++;
-                // if (!redirect_set)
-                // {
-                // p.array[p.count] = r.end;
-                //     redirect_set = true;
-                // }
                 
                 
                 if (type == INPUT)
@@ -362,25 +357,30 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
     return tokens;
 
 }
-int tokens_free(char** tokens, int length)
+int tokens_free(char** tokens, int* length)
 {
     if (!tokens)
         return 0;
 
-    for (int i = 0; i < length+1; i++)
+    for (int i = 0; i < (*length)+1; i++)
         free(tokens[i]);
 
-    free(tokens);
+    if (*length > 0)
+        free(tokens);
+
+    *length = -1;
     tokens = NULL;
     return 0;
 }
-int var_indices_free(tokenchar_pair* var_indices)
+int var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
 {
     if (!var_indices)
         return 0;
-    
-    free(var_indices);
+    if (*var_indices_len > 0)
+        free(var_indices);
+        
     var_indices = NULL;
+    *var_indices_len = -1;
 
     return 0;
 }
@@ -900,7 +900,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             return 0;
     }
 }
-int execute_external(char* args[TOKEN_SIZE], int arg_num)
+int execute_external_old(char* args[TOKEN_SIZE], int arg_num)
 {
     pid_t pid;
     int status;
@@ -1028,21 +1028,20 @@ int handle_redirect(char** tokens, int state, int j)
     return 0;
 
 }
-void sigint_handler(){};
 void reset_redirect()
 {
     r.input[0] = 0;
     r.output[0] = 0;
     r.output_cat[0] = 0;
     r.count = 0;
-    r.start = -2;
-    r.end = -2;
+    r.start = 0;
+    r.end = 0;
     r.chunk_array_counter = 0;
     r.chunk_array[0]->output = 0;
     r.chunk_array[0]->input = 0;
     r.chunk_array[0]->redirect_count = 0;
 }
-int pipeline(char** tokens, int token_num)
+int execute_external(char** tokens, int token_num)
 {
     int fd[p.count*2];
     int* current_fd = fd;
@@ -1114,7 +1113,6 @@ int pipeline(char** tokens, int token_num)
                     perror("File Error");
                     exit(1);
                 }
-                fprintf(stderr,"%d\n",fd_input);
                 dup2(fd_input, STDIN_FILENO);
                 close(fd_input);
             }
@@ -1209,18 +1207,16 @@ int hook_streams()
         return error;
     }
 }
-int reset_streams()
+void reset_streams()
 {
-    if (stdin_fd > 0)
+    if (stdin_fd > 0 && !read_from_file)
     {
         dup2(stdin_fd, STDIN_FILENO);
         close(stdin_fd);
     }
-    if (stdout_fd > 0)
+    if (stdout_fd > 0 && !read_from_file)
     {
         dup2(stdout_fd, STDOUT_FILENO);
         close(stdout_fd);
     }
-    
-    return 0;
 }
