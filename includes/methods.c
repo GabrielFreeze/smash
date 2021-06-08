@@ -2,13 +2,13 @@
 #include "linkedlist.c"
 #include "stack.c"
 
-int tokens_len(char* string)
+// Tokenisation.
+int tokens_init(char* string)
 {
     int count = 0;
     bool in_quotes = false;
     int type, prev_type = NONE;
     bool is_output_cat = false;
-    // bool redirect_set = false;
     bool special_before = false;
 
     for (int i = 0; i < strlen(string); i++)
@@ -32,24 +32,27 @@ int tokens_len(char* string)
                 if (special_before)
                     return 0;
 
-                p.count++;
-            
-                r.chunk_array[p.count]->output = 0;
-                r.chunk_array[p.count]->input = 0;
-                r.chunk_array[p.count]->redirect_count = 0;
+                ex.pipe_count++;
+                
+                ex.section[ex.pipe_count]->output = 0;
+                ex.section[ex.pipe_count]->input = 0;
+                ex.section[ex.pipe_count]->redirect_count = 0;
+
+
             
                 special_before = true;
-                // redirect_set = false;
-                p.end = (prev_type == META)? count:count+1;
+                ex.pipe_end =  (prev_type == META)? count:count+1;
 
-                if (p.start < 0)
-                    p.start = p.end;
-
-                if (!i || !p.start)
+                 
+                if (ex.pipe_start < 0)
+                    ex.pipe_start = ex.pipe_end;
+                   
+                if (!i || !ex.pipe_start)
                     return 0;
                 
-                p.array[p.count-1] = p.end;
-                p.array[p.count] = 0;
+                
+                ex.pipe_indices[ex.pipe_count-1] = ex.pipe_end;
+                ex.pipe_indices[ex.pipe_count] = 0;
 
             }
 
@@ -59,43 +62,42 @@ int tokens_len(char* string)
                 is_output_cat = true;
             }
 
-           
-
              //If the type is a redirect
             if (type >= OUTPUT && type < PIPE)
             {
                 if (special_before)
                     return 0;
 
-                r.count++;
+                in.redirect_count++;
+
                 special_before = true;
-                r.end = (prev_type == META)? count:count+1;
 
-                if (!r.start)
-                    r.start = r.end;
+                ex.redirect_end = (prev_type == META)? count:count+1;
 
-                if (!i || !r.start)
+                
+                if (!in.redirect_start)
+                    in.redirect_start = ex.redirect_end;
+                
+                if (!i || !in.redirect_start)
                     return 0;
                 
-                if (p.count >= BUFSIZE-1)
+                if (ex.pipe_count >= BUFSIZE-1)
                     return 0;
-
-                r.array[r.count-1] = type;
-                r.chunk_array[p.count]->redirect_count ++;
                 
+                in.redirect_indices[in.redirect_count-1] = type;
+                ex.section[ex.pipe_count]->redirect_count ++;
                 
                 if (type == INPUT)
-                    r.chunk_array[p.count]->input = r.end;
+                    ex.section[ex.pipe_count]->input = ex.redirect_end;
                 if (type == OUTPUT)
                 {
-                    r.chunk_array[p.count]->output = r.end;
-                    r.chunk_array[p.count]->cat = false;
+                    ex.section[ex.pipe_count]->output = ex.redirect_end;
+                    ex.section[ex.pipe_count]->cat = false;
                 }
-                r.chunk_array[p.count]->cat = false;
                 if (type == OUTPUT_CAT)
                 {
-                    r.chunk_array[p.count]->output = r.end;
-                    r.chunk_array[p.count]->cat = true;
+                    ex.section[ex.pipe_count]->output = ex.redirect_end;
+                    ex.section[ex.pipe_count]->cat = true;
 
                 }
             }
@@ -123,10 +125,10 @@ int tokens_len(char* string)
         count++;
     
     //There mustn't be an odd amount of quotes or a redirect or a pipe character in the last token.
-    if  (in_quotes || r.end == count || p.end == count)
+    if (in_quotes || ex.redirect_end == count || ex.pipe_end == count)
         return 0;
-    
-    p.array[p.count] = count;
+
+    ex.pipe_indices[ex.pipe_count] = count;
     return count;
 
     
@@ -221,21 +223,6 @@ bool is_deref(char* string, int upper)
     return ((upper-lower) % 2 == 0);
 
 }
-int handle_error()
-{
-    if (error == SYSTEM_CALL_ERROR)
-    {
-        perror("Error");
-        return 0;
-    }
-    
-    if (error)
-        fprintf(stderr,"%s",errors[error]);
-   
-
-    return 0;
-    
-}
 char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_index)
 {  
     int index = 0;
@@ -250,7 +237,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
     bool meta = false;
     int type, prev_type = NONE;
 
-    if (!(max_length = tokens_len(input)))
+    if (!(max_length = tokens_init(input)))
     {
         error = PARSE_ERROR;
         return NULL;
@@ -357,6 +344,23 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
     return tokens;
 
 }
+
+// Error handling and variable resetting.
+int handle_error()
+{
+    if (error == SYSTEM_CALL_ERROR)
+    {
+        perror("Error");
+        return 0;
+    }
+    
+    if (error)
+        fprintf(stderr,"%s",errors[error]);
+   
+
+    return 0;
+    
+}
 int tokens_free(char** tokens, int* length)
 {
     if (!tokens)
@@ -384,17 +388,51 @@ int var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
 
     return 0;
 }
+void reset_streams()
+{
+    if (stdin_fd > 0 && !read_from_file)
+    {
+        dup2(stdin_fd, STDIN_FILENO);
+        close(stdin_fd);
+    }
+    if (stdout_fd > 0 && !read_from_file)
+    {
+        dup2(stdout_fd, STDOUT_FILENO);
+        close(stdout_fd);
+    }
+}
+void reset_ex()
+{
+    ex.section[0]->input = 0;
+    ex.section[0]->output = 0;
+    ex.section[0]->redirect_count = 0;
+    ex.pipe_count = 0;
+    ex.pipe_start = -1;
+    ex.pipe_end = -1;
+    ex.redirect_end = 0;
+    new_start = 0;
+}
+void reset_in()
+{
+    in.redirect_count = 0;
+    in.input_filename[0] = 0;
+    in.output_filename[0] = 0;
+    in.output_cat_filename[0] = 0;
+    in.redirect_start = 0;
+}
+
+//Shell variables.
 int init_vars(void)
 {
-    for (int i = 0; environ[i]; i++) // Set every enviroment variable as a shell variable, with the bool env set to true.
+    // Set every enviroment variable as a shell variable, with the bool env set to true.
+    for (int i = 0; environ[i]; i++) 
     {
         char var[VALUE_SIZE];
-        strcpy(var,environ[i]);
+        strncpy(var,environ[i],VALUE_SIZE);
 
         char* key = strtok(var, "=");
         if (error = node_insert(key, getenv(key), true))
             return error;
-
     }
 
     //Checking if PATH, USER and HOME were set
@@ -420,23 +458,22 @@ int init_vars(void)
     if (!node_search("EXITCODE") && (error = node_insert("EXITCODE", "NONE", true)))
         return error;
 
-
+    //Renew the location of the shell executable
     char shell[BUFSIZE];
     int num_bytes;
-    if (num_bytes = readlink("/proc/self/exe", shell, BUFSIZE-1) == -1)
+    if ((num_bytes = readlink("/proc/self/exe", shell, BUFSIZE-1)) == -1)
         return NODE_ASSIGNMENT_ERROR;
     
     shell[num_bytes] = '\0';
 
     if (error = node_insert("SHELL", shell ,true))
         return error;
-    //______________________________________________________________________
 
     //Any changes to PWD (env), should be mirrored to CWD (env), which is then mirrored to CWD (shell).
-    // No if statement because the current working directory must always point to home
+    // On initialisation, home points to the current working directory
 
     char cwd[VALUE_SIZE];
-    strcpy(cwd,getenv("HOME"));
+    strncpy(cwd,getenv("HOME"),VALUE_SIZE);
 
     if (error = node_insert("CWD", cwd, true)) //Create shell variable CWD.
         return error;
@@ -455,8 +492,6 @@ int init_vars(void)
     chdir(cwd);
     
     //______________________________________________________________________
-
-    //Renew the location of the program executable
 
 
     return 0;
@@ -614,100 +649,8 @@ int assign_vars(char** tokens, int length, int i)
 
 
 }
-int contains_char(char* string, char a)
-{
-    for (int i = 0; i < strlen(string); i++)
-    {
-        if (string[i] == a)
-            return i;
-    }
 
-    return -1;
-}
-int tokens_parse(char* tokens[TOKEN_SIZE], int token_num, int j)
-{
-    int i;
-    int match = 1;
-    int fd_input;
-    int fd_output;
-    int fd_output_cat;
-    error = 0;
-
-    // Do the input and output have to be redirected?
-    if (r.input[0] && !read_from_file)
-    {
-        if ((fd_input = open(r.input, O_RDWR)) == -1)
-            error = SYSTEM_CALL_ERROR;
-        else
-        {
-            stdin_fd = dup(STDIN_FILENO);
-            fprintf(stderr,"%d\n",fd_input);
-
-            dup2(fd_input,STDIN_FILENO);
-            close(fd_input);
-        }
-    } 
-    if (r.output[0] && !read_from_file)
-    {
-        if ((fd_output = open(r.output, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
-            error = SYSTEM_CALL_ERROR;
-        else
-        {
-            stdout_fd = dup(STDOUT_FILENO);
-
-            dup2(fd_output,STDOUT_FILENO);
-            close(fd_output);
-        }
-    }
-    if (r.output_cat[0] && !read_from_file)
-    {
-        if ((fd_output = open(r.output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
-            error = SYSTEM_CALL_ERROR;
-        else
-        {
-        stdout_fd = dup(STDOUT_FILENO);
-
-        dup2(fd_output,STDOUT_FILENO); 
-        close(fd_output);
-        }
-
-    }
-
-    if (error)
-        goto end;
-
-    // for (i = 0; i < internal_commands_len && (match = strcmp(tokens[0],internal_commands[i])); i++);
-    
-    // //It is an external command
-    // if (match)
-    // {
-    //     if (error = pipeline(tokens, token_num))
-    //         goto end;
-    // }
-
-    //It is an internal command
-    //The loop breaks upon finding a match, therefore i should point to the internal command
-    if (error = execute_internal(tokens+1, token_num-1, j))
-        goto end;
-
-    //Revert back to normal streams unless you are executing a 'source' operation
-    if (read_from_file)
-        return 0;
-
-    end:
-    if (stdin_fd > 0)
-    {
-        dup2(stdin_fd, STDIN_FILENO);
-        close(stdin_fd);
-    }
-    if (stdout_fd > 0)
-    {
-    dup2(stdout_fd, STDOUT_FILENO);
-    close(stdout_fd);
-    }
-
-    return error;
-}
+// Commands.
 int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
 {
     //Note that the first element of args is NOT the name of the command, its the first argument
@@ -900,46 +843,201 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             return 0;
     }
 }
-int execute_external_old(char* args[TOKEN_SIZE], int arg_num)
+int execute_external(char** tokens, int token_num)
 {
+    int fd[ex.pipe_count*2];
+    int* current_fd = fd;
+    int* previous_fd;
     pid_t pid;
+    int output_file;
+    int fd_output;
+    int input_file;
+    int fd_input;
     int status;
     int exitcode;
     char str[10];
-
-
-    if ((pid = fork()) == -1)
+    
+    for (int i = 0; i < ex.pipe_count+1; i++, previous_fd = current_fd, current_fd += 2)
     {
-        printf("Fork -1\n");
-        return FORK_ERROR;
-    }
+        int argc = 0;
+        char* args[BUFSIZE];
+        pid_t pid;
 
-    if (!pid) // Child Process
-    {
-        execvp(args[0],args);  
-        fprintf(stderr,"Could not find binary file %s\n",args[0]);
-        exit(EXIT_FAILURE);
-    }
+        // This for loops iterates over the a set of arguments seperated by pipes.
+        // If the set of arguments has redirection files specified, they are not iterated over.
 
+        for (int j = new_start; j < ex.pipe_indices[i]-ex.section[i]->redirect_count; j++)
+            args[argc++] = tokens[j];
+        args[argc] = NULL;
+        
+        // The next iterations starts from  the end of the previous.
+        new_start = ex.pipe_indices[i];
+        
+        if (i < ex.pipe_count)
+            pipe(current_fd);
+         
+        if ((pid = fork()) < 0)
+            return SYSTEM_CALL_ERROR;
+        else if (!pid) // Child Process
+        {
 
-    else //Parent process
-    {
+            // Hook output based on pipeline
+            if (i < ex.pipe_count)
+            {
+                close(current_fd[0]);
+                dup2(current_fd[1], STDOUT_FILENO);
+                close(current_fd[1]);
+                
+            }
+            //Hook output if the user specified a file
+            if (output_file = ex.section[i]->output)
+            {
+                //Opens file in rw or a+
+                if ((fd_output = open(tokens[output_file], ex.section[i]->cat? (O_CREAT | O_APPEND | O_RDWR):(O_CREAT | O_RDWR | O_TRUNC), S_IRWXU)) < 0)
+                {
+                    perror("File Error");
+                    exit(1);
+                }
+
+                dup2(fd_output,STDOUT_FILENO);
+                close(fd_output); 
+            }
+            
+            // Hooks input based on pipeline
+            if (i)
+            {
+                close(previous_fd[1]);
+                dup2(previous_fd[0],STDIN_FILENO);
+                close(previous_fd[0]);
+            }
+            // Hooks input if the user specified a file
+            if (input_file = ex.section[i]->input)
+            {
+                if ((fd_input = open(tokens[input_file], O_RDWR)) < 0)
+                {
+                    perror("File Error");
+                    exit(1);
+                }
+                dup2(fd_input, STDIN_FILENO);
+                close(fd_input);
+            }
+            
+            execvp(args[0], args);
+            perror("Exec Error");
+            exit(1);
+        }
+
+        if (i) // The first parent process
+        {
+            close(previous_fd[0]);
+            close(previous_fd[1]);
+        }
 
         if (wait(&status) > 0 && WIFEXITED(status))
         { 
-            //Updates node_edit with the exitcode, if any.
-
             exitcode = WEXITSTATUS(status);
+            //Converts int to string
             sprintf(str, "%d", exitcode);
 
+            //Stores exitcode in shell variable EXITCODE
             if (error = node_edit(node_search("EXITCODE"), str)) 
-                return error;
-                          
-        }          
+                fprintf(stderr,"Could not save exitcode");
+        } 
 
     }
 
     return 0;
+}
+
+//Redirects for internal commands.
+int handle_redirect(char** tokens, int state, int j)
+{
+
+    //What redirect is it?
+    if (state == INPUT)
+        strcpy(in.input_filename, tokens[in.redirect_start+j]);
+
+    if (state == OUTPUT)
+        strcpy(in.output_filename, tokens[in.redirect_start+j]);
+
+    if (state == OUTPUT_CAT)
+        strcpy(in.output_cat_filename, tokens[in.redirect_start+j]);
+    
+    return 0;
+
+}
+int hook_streams()
+{
+    int match = 1;
+    int fd_input;
+    int fd_output;
+    int fd_output_cat;
+    error = 0;
+
+    // Do the input and output have to be redirected?
+    // Opens files, links them with respective stream.
+
+    
+    // if (r.input[0] && !read_from_file)
+    if (in.input_filename[0] && !read_from_file)
+    {
+        // if ((fd_input = open(r.input, O_RDWR)) == -1)
+        if ((fd_input = open(in.input_filename, O_RDWR)) == -1)
+            error = SYSTEM_CALL_ERROR;
+        else
+        {
+            stdin_fd = dup(STDIN_FILENO);
+            fprintf(stderr,"%d\n",fd_input);
+
+            dup2(fd_input,STDIN_FILENO);
+            close(fd_input);
+        }
+    } 
+    
+    // if (r.output[0] && !read_from_file)
+    if (in.output_filename[0] && !read_from_file)
+    {
+        // if ((fd_output = open(r.output, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
+        if ((fd_output = open(in.output_filename, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
+            error = SYSTEM_CALL_ERROR;
+        else
+        {
+            stdout_fd = dup(STDOUT_FILENO);
+
+            dup2(fd_output,STDOUT_FILENO);
+            close(fd_output);
+        }
+    }
+    
+    // if (r.output_cat[0] && !read_from_file)
+    if (in.output_cat_filename[0] && !read_from_file)
+    {
+        // if ((fd_output = open(r.output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
+        if ((fd_output = open(in.output_cat_filename, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
+            error = SYSTEM_CALL_ERROR;
+        else
+        {
+        stdout_fd = dup(STDOUT_FILENO);
+
+        dup2(fd_output,STDOUT_FILENO); 
+        close(fd_output);
+        }
+
+    }
+
+    return error;
+}
+
+//Miscellanous.
+int contains_char(char* string, char a)
+{
+    for (int i = 0; i < strlen(string); i++)
+    {
+        if (string[i] == a)
+            return i;
+    }
+
+    return -1;
 }
 int str_to_int(int* value, char* string)
 {
@@ -1011,212 +1109,4 @@ int contains_word(char* input, char* key)
     return 0;
 
 
-}
-int handle_redirect(char** tokens, int state, int j)
-{
-
-    //What redirect is it?
-    if (state == INPUT)
-        strcpy(r.input, tokens[r.start+j]);
-
-    if (state == OUTPUT)
-        strcpy(r.output, tokens[r.start+j]);
-
-    if (state == OUTPUT_CAT)
-        strcpy(r.output_cat, tokens[r.start+j]);
-    
-    return 0;
-
-}
-void reset_redirect()
-{
-    r.input[0] = 0;
-    r.output[0] = 0;
-    r.output_cat[0] = 0;
-    r.count = 0;
-    r.start = 0;
-    r.end = 0;
-    r.chunk_array_counter = 0;
-    r.chunk_array[0]->output = 0;
-    r.chunk_array[0]->input = 0;
-    r.chunk_array[0]->redirect_count = 0;
-}
-int execute_external(char** tokens, int token_num)
-{
-    int fd[p.count*2];
-    int* current_fd = fd;
-    int* previous_fd;
-    pid_t pid;
-    int output_file;
-    int fd_output;
-    int input_file;
-    int fd_input;
-    int status;
-    int exitcode;
-    char str[10];
-
-    for (int i = 0; i < p.count+1; i++, previous_fd = current_fd, current_fd += 2)
-    {
-        int argc = 0;
-        char* args[BUFSIZE];
-
-        for (int j = new_start; j < p.array[i]-r.chunk_array[i]->redirect_count; j++)
-            args[argc++] = tokens[j];
-        args[argc] = NULL;
-        
-        new_start = p.array[i]; // For the next iteration
-              
-        if (i < p.count)
-            pipe(current_fd);
-
-        pid_t pid = fork();
-         
-        if (pid == -1)
-            return SYSTEM_CALL_ERROR;
-        else if (pid == 0) // Child Process
-        {
-
-            // Hook output based on previous redirect
-            if (i < p.count)
-            {
-                close(current_fd[0]);
-                dup2(current_fd[1], STDOUT_FILENO);
-                close(current_fd[1]);
-                
-            }
-            //Hook output if the user specified a file
-            if (output_file = r.chunk_array[i]->output)
-            {
-                //Opens file in rw or a+
-                if ((fd_output = open(tokens[output_file], r.chunk_array[i]->cat? (O_CREAT | O_APPEND | O_RDWR):(O_CREAT | O_RDWR | O_TRUNC), S_IRWXU)) < 0)
-                {
-                    perror("File Error");
-                    exit(1);
-                }
-
-                dup2(fd_output,STDOUT_FILENO);
-                close(fd_output); 
-            }
-            
-            // Hooks input based on pipeline
-            if (i > 0)
-            {
-                close(previous_fd[1]);
-                dup2(previous_fd[0],STDIN_FILENO);
-                close(previous_fd[0]);
-            }
-            // Hooks input if the user specified a file
-            if (input_file = r.chunk_array[i]->input)
-            {
-                if ((fd_input = open(tokens[input_file], O_RDWR)) < 0)
-                {
-                    perror("File Error");
-                    exit(1);
-                }
-                dup2(fd_input, STDIN_FILENO);
-                close(fd_input);
-            }
-            
-            execvp(args[0], args);
-            perror("Exec Error");
-            exit(1);
-        }
-
-        if (i >= 1) // The first parent process
-        {
-            close(previous_fd[0]);
-            close(previous_fd[1]);
-        }
-
-        if (wait(&status) > 0 && WIFEXITED(status))
-        { 
-            exitcode = WEXITSTATUS(status);
-            //Converts int to string
-            sprintf(str, "%d", exitcode);
-
-            //Stores exitcode in shell variable EXITCODE
-            if (error = node_edit(node_search("EXITCODE"), str)) 
-                return error;                
-        } 
-
-    }
-
-    return 0;
-}
-void reset_pipe()
-{
-    new_start = 0;
-    p.count = 0;
-    p.start = -1;
-    p.end = -1;
-}
-int hook_streams()
-{
-    int match = 1;
-    int fd_input;
-    int fd_output;
-    int fd_output_cat;
-    error = 0;
-
-    // Do the input and output have to be redirected?
-    // Opens files, links them with respective stream.
-
-
-    if (r.input[0] && !read_from_file)
-    {
-        if ((fd_input = open(r.input, O_RDWR)) == -1)
-            error = SYSTEM_CALL_ERROR;
-        else
-        {
-            stdin_fd = dup(STDIN_FILENO);
-            fprintf(stderr,"%d\n",fd_input);
-
-            dup2(fd_input,STDIN_FILENO);
-            close(fd_input);
-        }
-    } 
-    if (r.output[0] && !read_from_file)
-    {
-        if ((fd_output = open(r.output, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
-            error = SYSTEM_CALL_ERROR;
-        else
-        {
-            stdout_fd = dup(STDOUT_FILENO);
-
-            dup2(fd_output,STDOUT_FILENO);
-            close(fd_output);
-        }
-    }
-    if (r.output_cat[0] && !read_from_file)
-    {
-        if ((fd_output = open(r.output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
-            error = SYSTEM_CALL_ERROR;
-        else
-        {
-        stdout_fd = dup(STDOUT_FILENO);
-
-        dup2(fd_output,STDOUT_FILENO); 
-        close(fd_output);
-        }
-
-    }
-
-    if (error)
-    {
-        reset_streams();
-        return error;
-    }
-}
-void reset_streams()
-{
-    if (stdin_fd > 0 && !read_from_file)
-    {
-        dup2(stdin_fd, STDIN_FILENO);
-        close(stdin_fd);
-    }
-    if (stdout_fd > 0 && !read_from_file)
-    {
-        dup2(stdout_fd, STDOUT_FILENO);
-        close(stdout_fd);
-    }
 }

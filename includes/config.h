@@ -105,8 +105,6 @@ typedef struct node_
     struct node_ *next;
     struct node_ *prev;
 } node;
-typedef unsigned char byte;
-typedef unsigned short two_bytes;
 typedef struct tokenchar_pair_struct
 {
     int token_index;
@@ -118,7 +116,6 @@ char* exit_keyword = {"exit"};
 char* metacharacters = {" |;<>\t"};
 char* quotes = {"\"\'"};
 char* internal_commands[TOKEN_SIZE] = {"exit","echo","cd","showvar","export","unset","showenv","pushd","popd","dirs","source"};
-char** envp;
 
 int internal_commands_len = 11;
 int error = 0;
@@ -128,43 +125,39 @@ node* head;
 node* tail;
 bool read_from_file = false;
 
-typedef struct red_
+typedef struct token_section_
 {
     int input;
     int output;
     bool cat;
     int redirect_count;
-} red[BUFSIZE];
-
-typedef struct redirect_
+} token_section[BUFSIZE];
+typedef struct redirect_ext_
 {
-    char input[TOKEN_SIZE];
-    char output[TOKEN_SIZE];
-    char output_cat[TOKEN_SIZE];
-    int count;
-    int array[BUFSIZE];
-    red chunk_array[BUFSIZ];
-    int chunk_array_counter;
-    int start;
-    int end;
-} redirect;
+    token_section section[BUFSIZE]; //r.chunk_array
+    int pipe_count; //p.count
+    int pipe_start; //p.start
+    int pipe_end; // p.end
+    int pipe_indices[BUFSIZE];  //p.array
+    int redirect_end; //r.end
+} redirect_ext;
+
+typedef struct redirect_int_
+{
+    int redirect_indices[BUFSIZE]; //r.array
+    int redirect_count; //r.count
+
+    char input_filename[TOKEN_SIZE]; //r.input
+    char output_filename[TOKEN_SIZE]; //r.output
+    char output_cat_filename[TOKEN_SIZE]; //r.output_cat
+
+    int redirect_start;//r.start
+} redirect_int;
 
 
+redirect_ext ex;
+redirect_int in;
 
-red k_array;
-
-
-
-redirect r;
-typedef struct pipe_struct
-{   
-    int count;
-    int start;
-    int end;
-    int array[BUFSIZE];
-} pipey;
-
-pipey p;
 int new_start;
 int stdin_fd = -1;
 int stdout_fd = -1;

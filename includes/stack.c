@@ -4,8 +4,6 @@
 char* stack[STACK_SIZE];     
 int top = -1;  //Will always point to the last element of stack. -1 if stack is empty.
 
-
-
 bool is_full()
 {
     return top+1 == STACK_SIZE;
