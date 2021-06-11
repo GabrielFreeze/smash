@@ -3,6 +3,8 @@
 #define KEY_SIZE 2000
 #define VALUE_SIZE 2000
 #define BUFSIZE 256
+#define ERRORS_LENGTH 20
+#define INTERNAL_COMMANDS_LEN 11
 
 #define NONE -1
 #define NORMAL 0
@@ -51,6 +53,7 @@
 #define DIRS_CMD 9
 #define SOURCE_CMD 10
 
+#define STACK_SIZE 100
 
 #define MEMORY_ERROR_MSG "A problem occured while dynamically allocating memory\n"
 #define BUFFER_ERROR_MSG "Did a token exceed its maximum buffer size?\n"
@@ -73,29 +76,6 @@
 #define NOT_A_DIR_MSG "Not a directory.\n"
 
 
-int errors_length = 20;
-char* errors[100] = {"_",
-                    MEMORY_ERROR_MSG,
-                    BUFFER_ERROR_MSG,
-                    PARSE_ERROR_MSG,
-                    VARIABLE_DECLARATION_MSG,
-                    VARIABLE_EXPANSION_MSG,
-                    VARIABLE_ASSIGNMENT_MSG,
-                    VARIABLE_NAME_MSG,
-                    NODE_NOT_FOUND_MSG,
-                    NODE_ASSIGNMENT_MSG,
-                    STACK_FULL_MSG,
-                    STACK_EMPTY_MSG,
-                    TOKENS_MEMORY_MSG,
-                    VARINDICES_MEMORY_MSG,
-                    INVALID_ARGS_MSG,
-                    ENV_VARIABLE_NOT_FOUND_MSG,
-                    ENV_VARIABLE_ASSIGNMENT_MSG,
-                    CWD_NOT_FOUND_MSG,
-                    NULL_GIVEN_MSG,
-                    NOT_A_DIR_MSG
-                    };
-
 
 typedef struct node_
 {
@@ -111,19 +91,6 @@ typedef struct tokenchar_pair_struct
     int char_index;
 } tokenchar_pair;
 
-char* prompt_default = {"init> "};
-char* exit_keyword = {"exit"};
-char* metacharacters = {" |;<>\t"};
-char* quotes = {"\"\'"};
-char* internal_commands[TOKEN_SIZE] = {"exit","echo","cd","showvar","export","unset","showenv","pushd","popd","dirs","source"};
-
-int internal_commands_len = 11;
-int error = 0;
-
-FILE* fp;
-node* head;
-node* tail;
-bool read_from_file = false;
 
 typedef struct token_section_
 {
@@ -158,9 +125,81 @@ typedef struct redirect_int_
 redirect_ext ex;
 redirect_int in;
 
+int errors_length;
+char errors[ERRORS_LENGTH][100];
+char prompt_default [20];
+char  exit_keyword[20];
+char metacharacters [20];
+char quotes[20];
+char internal_commands[INTERNAL_COMMANDS_LEN][TOKEN_SIZE];
+
+int internal_commands_len;
+int error;
+
+FILE* fp;
+node* head;
+node* tail;
+int vars_len;
+
+char* stack[STACK_SIZE];     
+int top;  //Will always point to the last element of stack. -1 if stack is empty.
+
 int new_start;
-int stdin_fd = -1;
-int stdout_fd = -1;
+int stdin_fd;
+int stdout_fd;
 char filename[TOKEN_SIZE];
 
 extern char **environ;
+
+void init();
+//Tokenisation
+int tokens_len(char* string);
+int char_type(char* string, int j);
+char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_index);
+bool is_deref(char* string, int upper);
+bool is_meta(char* string, int j);
+
+// Error handling and variable resetting.
+int handle_error();
+int tokens_free(char** tokens, int* length);
+int var_indices_free(tokenchar_pair* var_indices, int* var_indices_len);
+void reset_in();
+void reset_ex();
+void reset_streams();
+
+//Shell variables.
+bool is_var(char* token);
+int init_vars(void);
+bool vars_valid(char* token, int j);
+int expand_vars(char** tokens, tokenchar_pair* var_indices, int var_indices_len, int m);
+int assign_vars(char** tokens, int length, int i);
+
+// Commands.
+int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j);
+int execute_external(char** tokens, int token_num);
+
+//Redirects for internal commands.
+int handle_redirect(char* tokens[TOKEN_SIZE], int redirect_state, int j);
+int hook_streams();
+
+//Miscellaneous
+char* get_input_from_file(FILE* fp);
+int contains_word(char* input, char* key);
+int contains_char(char* string, char a);
+int str_to_int(int* value, char* string);
+
+//Linked List
+int node_insert(char* key, char* value, bool env);
+int node_delete(node* current_node);
+node* node_search(char* key);
+int node_edit(node* current_node, char* value);
+int node_export(node* current_node);
+void nodes_print();
+
+//Stack
+int print_stack();
+int peek(char** value);
+int pop(char** value);
+int push(char* value);
+bool is_full();
+int change_directory(char* value);

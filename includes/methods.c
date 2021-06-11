@@ -1,6 +1,272 @@
-#include "headers.h"
-#include "linkedlist.c"
-#include "stack.c"
+#include <string.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <pwd.h>
+#include "limits.h"
+#include <signal.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include "methods.h"
+
+//Initialise global variables
+void init()
+{
+    strcpy(errors[1], MEMORY_ERROR_MSG);
+    strcpy(errors[2], BUFFER_ERROR_MSG);
+    strcpy(errors[3], PARSE_ERROR_MSG);
+    strcpy(errors[4], VARIABLE_DECLARATION_MSG);
+    strcpy(errors[5], VARIABLE_EXPANSION_MSG);
+    strcpy(errors[6], VARIABLE_ASSIGNMENT_MSG);
+    strcpy(errors[7], VARIABLE_NAME_MSG);
+    strcpy(errors[8], NODE_NOT_FOUND_MSG);
+    strcpy(errors[9], NODE_ASSIGNMENT_MSG);
+    strcpy(errors[10], STACK_FULL_MSG);
+    strcpy(errors[11], STACK_EMPTY_MSG);
+    strcpy(errors[12], TOKENS_MEMORY_MSG);
+    strcpy(errors[13], VARINDICES_MEMORY_MSG);
+    strcpy(errors[14], INVALID_ARGS_MSG);
+    strcpy(errors[15], ENV_VARIABLE_NOT_FOUND_MSG);
+    strcpy(errors[16], ENV_VARIABLE_ASSIGNMENT_MSG);
+    strcpy(errors[17], CWD_NOT_FOUND_MSG);
+    strcpy(errors[18], NULL_GIVEN_MSG);
+    strcpy(errors[19], NOT_A_DIR_MSG);
+
+
+    strcpy(prompt_default, "init> ");
+    strcpy(metacharacters, " |;<>\t");
+    strcpy(quotes, "\"");
+
+    strcpy(internal_commands[0], "exit");    
+    strcpy(internal_commands[1], "echo");
+    strcpy(internal_commands[2], "cd");    
+    strcpy(internal_commands[3], "showvar");    
+    strcpy(internal_commands[4], "export");    
+    strcpy(internal_commands[5], "unset");    
+    strcpy(internal_commands[6], "showenv");    
+    strcpy(internal_commands[7], "pushd");    
+    strcpy(internal_commands[8], "popd");    
+    strcpy(internal_commands[9], "dirs");    
+    strcpy(internal_commands[10], "source");      
+
+    error = 0;
+    vars_len = 0;
+    top = -1;  //Will always point to the last element of stack. -1 if stack is empty.
+
+    stdin_fd = -1;
+    stdout_fd = -1;
+
+    in.redirect_start = 0;
+    ex.redirect_end = 0;
+    ex.pipe_start = -1;
+    ex.pipe_end = -1;
+
+}
+
+// Linked List
+int node_insert(char* key, char* value, bool env)
+{
+    node* new_node ;
+    node* current_node;
+
+    //If there already exists a node with that key, remove it.
+    if (current_node = node_search(key))
+        node_delete(current_node);
+
+    if  (!((new_node = (node*) malloc(sizeof(node))) &&
+        ((new_node->key = (char*) malloc(strlen(key)+1)) && 
+        (new_node->value = (char*) malloc(strlen(value)+1)))))
+        return MEMORY_ERROR;
+
+    strcpy(new_node->key, key);
+    strcpy(new_node->value, value);
+    new_node->env = env;
+
+    if (!vars_len)
+        tail = new_node;
+    else
+        head->prev = new_node;
+
+
+    new_node->next = head;
+    head = new_node;
+
+    if (env && setenv(key,value,true))
+        return ENV_VARIABLE_ASSIGNMENT_ERROR;
+    
+    vars_len++;
+    
+    return 0;
+
+}
+node* node_search(char* key)
+{
+    node* current_node;
+
+    if (!(current_node = head))
+        return NULL;
+
+    while (current_node && strcmp(current_node->key,key))
+        current_node = current_node->next;
+
+    return current_node;
+}
+int node_delete(node* current_node)
+{
+    //If previous node is Null, then the node to delete is the first one
+    if (!current_node)
+        return NODE_NOT_FOUND_ERROR;
+
+    if (current_node == head)
+      head = head->next;
+   else
+      current_node->prev->next = current_node->next; //The previous node will skip the current_node and point to the one after it.
+
+   if (current_node == tail)
+      tail = current_node->prev;
+   else
+      current_node->next->prev = current_node->prev; //The next node will skip the current_node and point to the one before it.
+
+    free(current_node);
+    current_node = NULL;
+    vars_len--;
+
+    return 0;
+
+}
+int node_edit(node* current_node, char* value)
+{
+    if (!current_node)
+        return NODE_NOT_FOUND_ERROR;
+    
+    if (!value)
+        return NULL_GIVEN_ERROR;
+
+    current_node->value = (char*) realloc(current_node->value, strlen(value)+1);
+    strcpy(current_node->value,value);
+
+    //Update the enviroment variable representing this shell variable.
+    if (current_node->env && setenv(current_node->key,value,1))
+        return ENV_VARIABLE_NOT_FOUND_ERROR;
+
+    return 0;
+}
+void nodes_print(){
+    for (node* current_node = head; current_node != NULL; current_node = current_node->next)
+        printf("%s=%s\n",current_node->key, current_node->value);  
+}
+int node_export(node* current_node)
+{
+    if (!current_node)
+        return NODE_NOT_FOUND_ERROR;
+    
+    current_node->env = true;
+
+    if (setenv(current_node->key,current_node->value,1))
+        return ENV_VARIABLE_ASSIGNMENT_ERROR;
+
+    return 0;
+}
+
+// Directory Stack
+bool is_full()
+{
+    return top+1 == STACK_SIZE;
+}
+int push(char* value)
+{
+    if (is_full())
+        return STACK_FULL_ERROR;
+    
+    if(!(stack[++top] = (char*) malloc(strlen(value)+1)))
+        return MEMORY_ERROR;
+
+    strcpy(stack[top],value);
+
+    if (error = change_directory(value))
+        return error;
+
+    return 0;
+}   
+int pop(char** value)
+{
+    if (!top) //Checks whether the stack has more than 1 value. The stack can never be empty.
+        return STACK_EMPTY_ERROR;
+    
+    if (error = peek(value))
+        return error;
+
+    free(stack[top--]);
+
+    //Updates the current working directory to the top most value, after the pop.
+    if (error = change_directory(stack[top]))
+        return error;
+
+    return 0;
+}
+int peek(char** value)
+{
+    if (!top)
+        return STACK_EMPTY_ERROR;
+
+    char* value2;
+    if(!(value2 = (char*) malloc(strlen(stack[top])+1)))
+        return MEMORY_ERROR;
+
+    strcpy(value2,stack[top]);
+    *value = value2;
+    return 0;
+}
+int print_stack()
+{
+    for (int i = top; i >= 0; i--)
+        printf("%s  ",stack[i]);
+    printf("\n");
+
+    return 0;
+}
+int change_topmost(char* value)
+{
+    if (!(stack[top] = (char*) realloc(stack[top], strlen(value)+1)))
+        return MEMORY_ERROR;
+
+    strcpy(stack[top],value);
+    return 0;
+}
+int change_directory(char* cwd)
+{
+    if (!cwd)
+        return CWD_NOT_FOUND_ERROR;
+
+    if (chdir(cwd)) //Changing the directory
+        return SYSTEM_CALL_ERROR; //Change this to perror maybe
+
+    char* new_cwd;
+    if (!(new_cwd = getcwd(NULL,0))) //Getting the new directory
+        return CWD_NOT_FOUND_ERROR; //perror?
+
+    if (setenv("PWD",new_cwd,1)) //Setting PWD(env) to the new directory
+        return ENV_VARIABLE_NOT_FOUND_ERROR;
+
+    node* current_node;
+
+    if (!(current_node = node_search("CWD"))) 
+        return CWD_NOT_FOUND_ERROR;
+
+    if (error = node_edit(current_node, new_cwd)) //Set CWD(env and shell) to the new directory
+        return error;
+
+    if (error = change_topmost(new_cwd)) //Updating dierctory stack by changing the top most element.
+        return error;
+    
+    return 0;
+
+}
+
 
 // Tokenisation.
 int tokens_init(char* string)
@@ -231,6 +497,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
     int max_length;
     *length = 0;
     *var_indices = NULL;
+    *var_index = 0;
     tokenchar_pair* var_indices2;
     char current_token[TOKEN_SIZE];
     bool in_quotes = false;
@@ -390,12 +657,12 @@ int var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
 }
 void reset_streams()
 {
-    if (stdin_fd > 0 && !read_from_file)
+    if (stdin_fd > 0 && !fp)
     {
         dup2(stdin_fd, STDIN_FILENO);
         close(stdin_fd);
     }
-    if (stdout_fd > 0 && !read_from_file)
+    if (stdout_fd > 0 && !fp)
     {
         dup2(stdout_fd, STDOUT_FILENO);
         close(stdout_fd);
@@ -833,9 +1100,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
 
             if (!(fp = fopen(args[0],"r")))
                 return SYSTEM_CALL_ERROR;
-            
-            read_from_file = true;
-    
+
             return 0;
         }
       
@@ -979,7 +1244,7 @@ int hook_streams()
 
     
     // if (r.input[0] && !read_from_file)
-    if (in.input_filename[0] && !read_from_file)
+    if (in.input_filename[0] && !fp)
     {
         // if ((fd_input = open(r.input, O_RDWR)) == -1)
         if ((fd_input = open(in.input_filename, O_RDWR)) == -1)
@@ -995,7 +1260,7 @@ int hook_streams()
     } 
     
     // if (r.output[0] && !read_from_file)
-    if (in.output_filename[0] && !read_from_file)
+    if (in.output_filename[0] && !fp)
     {
         // if ((fd_output = open(r.output, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
         if ((fd_output = open(in.output_filename, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
@@ -1010,7 +1275,7 @@ int hook_streams()
     }
     
     // if (r.output_cat[0] && !read_from_file)
-    if (in.output_cat_filename[0] && !read_from_file)
+    if (in.output_cat_filename[0] && !fp)
     {
         // if ((fd_output = open(r.output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
         if ((fd_output = open(in.output_cat_filename, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
@@ -1028,7 +1293,7 @@ int hook_streams()
     return error;
 }
 
-//Miscellanous.
+//Miscellaneous.
 int contains_char(char* string, char a)
 {
     for (int i = 0; i < strlen(string); i++)
@@ -1110,3 +1375,4 @@ int contains_word(char* input, char* key)
 
 
 }
+

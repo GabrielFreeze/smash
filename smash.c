@@ -1,15 +1,19 @@
 //_______________________________Includes______________________________________
-#include "includes/linenoise-master/linenoise.c"
-#include "includes/methods.c"
+#include <string.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+#include "includes/methods.h"
+#include "includes/linenoise-master/linenoise.h"
+
 
 
 int main(void)
 {
 
-    in.redirect_start = 0;
-    ex.redirect_end = 0;
-    ex.pipe_start = -1;
-    ex.pipe_end = -1;
+    init();
 
     char* input;
 
@@ -23,6 +27,8 @@ int main(void)
 
     bool interpret_vars_assign = false;
 
+    char* prompt;
+    
     setbuf(stdout, NULL);
     signal(SIGINT, SIG_IGN);
 
@@ -33,22 +39,18 @@ int main(void)
         exit(0);
     }
     
-    char* prompt;
     prompt = node_search("PROMPT")->value;
     
 
     while (1)
     {   
         //Get the input from a file, or else from the command prompt.
-        if (read_from_file)
+        if (fp)
         {
             if(!(input = get_input_from_file(fp)))
             {
                 fclose(fp);
-                read_from_file = false;
-
-                //Reset to standard input/output.
-                reset_streams();
+                fp = NULL;
 
                 //Prompt the user to enter text since source command is over.
                 input = linenoise(prompt);
@@ -106,7 +108,7 @@ int main(void)
                     /* This for loops breaks if match equals 0
                     and the value of j points to the command it matched to in 'internal_commands' */
 
-                    for (j = 0; j < internal_commands_len && (match = strcmp(tokens[0],internal_commands[j])); j++);
+                    for (j = 0; j < INTERNAL_COMMANDS_LEN && (match = strcmp(tokens[0],internal_commands[j])); j++);
 
                     //It is an external command.
                     if (match)
@@ -116,10 +118,10 @@ int main(void)
                     else
                     {
                         //Raise an error if the word source is included while already executing a source command.
-                        if (read_from_file && contains_word(tokens[0],"source"))
+                        if (fp && contains_word(tokens[0],"source"))
                         {
                             fclose(fp);
-                            read_from_file = false;
+                            fp = NULL;
                             fprintf(stderr,"Nested source statements are not supported.\n");
                             goto end;
                         }
@@ -143,9 +145,6 @@ int main(void)
                 }
             }
                 
-
-        
-            
 
             end:
                 handle_error(); //Prints Error Message.

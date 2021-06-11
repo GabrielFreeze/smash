@@ -7,6 +7,9 @@
         "headers.h": "c",
         "stdlib.h": "c",
         "stdbool.h": "c",
-        "type_traits": "c"
+        "type_traits": "c",
+        "linenoise.h": "c",
+        "stat.h": "c",
+        "fcntl.h": "c"
     }
 }
