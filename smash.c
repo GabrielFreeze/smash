@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
-#include "includes/methods.h"
+#include "includes/headers.h"
 #include "includes/linenoise-master/linenoise.h"
 
 
@@ -22,8 +22,8 @@ int main(void)
 
     char line[BUFSIZE];
 
-    tokenchar_pair* var_indices = NULL;
     int var_indices_len;
+    tokenchar_pair* var_indices = NULL;
 
     bool interpret_vars_assign = false;
 
@@ -33,17 +33,15 @@ int main(void)
     signal(SIGINT, SIG_IGN);
 
     //Initialise all shell variables.
-    if (error = init_vars())
-    {
+    if (exit_program = (error = init_vars()))
         handle_error();
-        exit(0);
-    }
-    
-    prompt = node_search("PROMPT")->value;
+    else 
+        prompt = node_search("PROMPT")->value;
     
 
-    while (1)
+    while (!exit_program)
     {   
+
         //Get the input from a file, or else from the command prompt.
         if (fp)
         {
@@ -133,13 +131,17 @@ int main(void)
                                 goto end;
                         }
 
-                        //Trim the tokens refering to files, and update token_num accordingly.
+                        //Trim the tokens refering to files.
                         if (in.redirect_start)
-                            tokens[token_num = in.redirect_start] = NULL;
+                            tokens[in.redirect_start] = NULL;
                         
-                        // Hook any files to standard input/output and execute the internal command if no errors are raised. 
+                        /* Hook any files to standard input/output and execute the internal command if no errors are raised.
+                        (in.redirect_start? in.redirect_start:token_num)-1 --> If the tokens were trimmed, then the number of tokens should reflect that.
+                        token_num is not simply set to in.redirect_start because token_num must still reflect the actual number of elements dynamically allocated in tokens,
+                        so they can be properly freed afterwards using token_num */
+
                         if (!(error = hook_streams()))
-                            error = execute_internal(tokens+1, token_num-1, j);
+                            error = execute_internal(tokens+1, (in.redirect_start? in.redirect_start:token_num)-1, j);
 
                     } 
                 }
@@ -156,14 +158,17 @@ int main(void)
 
                 //If the user decides to delete the PROMPT variable, the default value should display.
                 node* current_node;
-                if (!(current_node = node_search("PROMPT")))
-                    prompt = prompt_default;
-                else
-                    prompt = current_node->value;
+                prompt = (!(current_node = node_search("PROMPT")))? prompt_default:current_node->value;
+
+
+
                 
         }
         free(input);
     }
+
+    free_vars(); //Free all shell variables
+    free_stack(); //Free all items in the directory stack
 
 
     return 0;

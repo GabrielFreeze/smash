@@ -8,33 +8,32 @@
 #include <sys/stat.h>
 #include <pwd.h>
 #include "limits.h"
-#include <signal.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "methods.h"
+#include "headers.h"
 
 //Initialise global variables
-void init()
+void init() 
 {
-    strcpy(errors[1], MEMORY_ERROR_MSG);
-    strcpy(errors[2], BUFFER_ERROR_MSG);
-    strcpy(errors[3], PARSE_ERROR_MSG);
-    strcpy(errors[4], VARIABLE_DECLARATION_MSG);
-    strcpy(errors[5], VARIABLE_EXPANSION_MSG);
-    strcpy(errors[6], VARIABLE_ASSIGNMENT_MSG);
-    strcpy(errors[7], VARIABLE_NAME_MSG);
-    strcpy(errors[8], NODE_NOT_FOUND_MSG);
-    strcpy(errors[9], NODE_ASSIGNMENT_MSG);
-    strcpy(errors[10], STACK_FULL_MSG);
-    strcpy(errors[11], STACK_EMPTY_MSG);
-    strcpy(errors[12], TOKENS_MEMORY_MSG);
-    strcpy(errors[13], VARINDICES_MEMORY_MSG);
-    strcpy(errors[14], INVALID_ARGS_MSG);
-    strcpy(errors[15], ENV_VARIABLE_NOT_FOUND_MSG);
-    strcpy(errors[16], ENV_VARIABLE_ASSIGNMENT_MSG);
-    strcpy(errors[17], CWD_NOT_FOUND_MSG);
-    strcpy(errors[18], NULL_GIVEN_MSG);
-    strcpy(errors[19], NOT_A_DIR_MSG);
+    strcpy(errors[0], MEMORY_ERROR_MSG);
+    strcpy(errors[1], BUFFER_ERROR_MSG);
+    strcpy(errors[2], PARSE_ERROR_MSG);
+    strcpy(errors[3], VARIABLE_DECLARATION_MSG);
+    strcpy(errors[4], VARIABLE_EXPANSION_MSG);
+    strcpy(errors[5], VARIABLE_ASSIGNMENT_MSG);
+    strcpy(errors[6], VARIABLE_NAME_MSG);
+    strcpy(errors[7], NODE_NOT_FOUND_MSG);
+    strcpy(errors[8], NODE_ASSIGNMENT_MSG);
+    strcpy(errors[9], STACK_FULL_MSG);
+    strcpy(errors[10], STACK_EMPTY_MSG);
+    strcpy(errors[11], TOKENS_MEMORY_MSG);
+    strcpy(errors[12], VARINDICES_MEMORY_MSG);
+    strcpy(errors[13], INVALID_ARGS_MSG);
+    strcpy(errors[14], ENV_VARIABLE_NOT_FOUND_MSG);
+    strcpy(errors[15], ENV_VARIABLE_ASSIGNMENT_MSG);
+    strcpy(errors[16], CWD_NOT_FOUND_MSG);
+    strcpy(errors[17], NULL_GIVEN_MSG);
+    strcpy(errors[18], NOT_A_DIR_MSG);
 
 
     strcpy(prompt_default, "init> ");
@@ -53,15 +52,11 @@ void init()
     strcpy(internal_commands[9], "dirs");    
     strcpy(internal_commands[10], "source");      
 
-    error = 0;
-    vars_len = 0;
     top = -1;  //Will always point to the last element of stack. -1 if stack is empty.
 
     stdin_fd = -1;
     stdout_fd = -1;
 
-    in.redirect_start = 0;
-    ex.redirect_end = 0;
     ex.pipe_start = -1;
     ex.pipe_end = -1;
 
@@ -70,7 +65,7 @@ void init()
 // Linked List
 int node_insert(char* key, char* value, bool env)
 {
-    node* new_node ;
+    node* new_node;
     node* current_node;
 
     //If there already exists a node with that key, remove it.
@@ -117,7 +112,6 @@ node* node_search(char* key)
 }
 int node_delete(node* current_node)
 {
-    //If previous node is Null, then the node to delete is the first one
     if (!current_node)
         return NODE_NOT_FOUND_ERROR;
 
@@ -131,8 +125,13 @@ int node_delete(node* current_node)
    else
       current_node->next->prev = current_node->prev; //The next node will skip the current_node and point to the one before it.
 
+    if (current_node->value)
+        free(current_node->value);
+
+    if (current_node->key)
+        free(current_node->key);
+
     free(current_node);
-    current_node = NULL;
     vars_len--;
 
     return 0;
@@ -146,7 +145,9 @@ int node_edit(node* current_node, char* value)
     if (!value)
         return NULL_GIVEN_ERROR;
 
-    current_node->value = (char*) realloc(current_node->value, strlen(value)+1);
+    if (!(current_node->value = (char*) realloc(current_node->value, strlen(value)+1)))
+        return MEMORY_ERROR;
+        
     strcpy(current_node->value,value);
 
     //Update the enviroment variable representing this shell variable.
@@ -156,7 +157,7 @@ int node_edit(node* current_node, char* value)
     return 0;
 }
 void nodes_print(){
-    for (node* current_node = head; current_node != NULL; current_node = current_node->next)
+    for (node* current_node = head; current_node; current_node = current_node->next)
         printf("%s=%s\n",current_node->key, current_node->value);  
 }
 int node_export(node* current_node)
@@ -194,9 +195,7 @@ int push(char* value)
 }   
 int pop(char** value)
 {
-    if (!top) //Checks whether the stack has more than 1 value. The stack can never be empty.
-        return STACK_EMPTY_ERROR;
-    
+    //peek already checks if the stack only has one value or not. peek ⊆ pop    
     if (error = peek(value))
         return error;
 
@@ -230,7 +229,8 @@ int print_stack()
     return 0;
 }
 int change_topmost(char* value)
-{
+{   
+    stack[top][0] = 0;
     if (!(stack[top] = (char*) realloc(stack[top], strlen(value)+1)))
         return MEMORY_ERROR;
 
@@ -247,7 +247,7 @@ int change_directory(char* cwd)
 
     char* new_cwd;
     if (!(new_cwd = getcwd(NULL,0))) //Getting the new directory
-        return CWD_NOT_FOUND_ERROR; //perror?
+        return SYSTEM_CALL_ERROR;
 
     if (setenv("PWD",new_cwd,1)) //Setting PWD(env) to the new directory
         return ENV_VARIABLE_NOT_FOUND_ERROR;
@@ -266,7 +266,6 @@ int change_directory(char* cwd)
     return 0;
 
 }
-
 
 // Tokenisation.
 int tokens_init(char* string)
@@ -292,13 +291,14 @@ int tokens_init(char* string)
         else
         {
             is_output_cat = false;
-
+             
             if (type == PIPE)
             {
                 if (special_before)
                     return 0;
 
-                ex.pipe_count++;
+                if (++ex.pipe_count == BUFSIZE)
+                    return 0;
                 
                 ex.section[ex.pipe_count]->output = 0;
                 ex.section[ex.pipe_count]->input = 0;
@@ -334,7 +334,8 @@ int tokens_init(char* string)
                 if (special_before)
                     return 0;
 
-                in.redirect_count++;
+                if (++in.redirect_count == BUFSIZE)
+                    return 0;
 
                 special_before = true;
 
@@ -347,8 +348,6 @@ int tokens_init(char* string)
                 if (!i || !in.redirect_start)
                     return 0;
                 
-                if (ex.pipe_count >= BUFSIZE-1)
-                    return 0;
                 
                 in.redirect_indices[in.redirect_count-1] = type;
                 ex.section[ex.pipe_count]->redirect_count ++;
@@ -390,6 +389,9 @@ int tokens_init(char* string)
     if (type == NORMAL || type == QUOTE) 
         count++;
     
+    if (type == ESCAPE || type == VARIABLE)
+        return 0;
+
     //There mustn't be an odd amount of quotes or a redirect or a pipe character in the last token.
     if (in_quotes || ex.redirect_end == count || ex.pipe_end == count)
         return 0;
@@ -465,41 +467,40 @@ bool is_meta(char* string, int j)
     for (int i = 0; i < strlen(metacharacters); i++)
     {
         if (string[j] == metacharacters[i])
-        {
-            if (is_deref(string, j))
-                return 0;
-            else
-                return 1;
-        }
+            return !is_deref(string, j); 
     }
 
     return 0;
 }
 bool is_deref(char* string, int upper)
 {
-    if (upper == 0)
+    // Counts the number of escape character behind a character.
+    // This is so to determine whether the (\) character before it is an Escape Character,
+    // ...or a Dereferenced Escape Character with no special meaning.
+    if (!upper)
         return false;
 
     int lower = upper-1;
 
-
     while (lower >= 0 && string[lower] == '\\')
         lower --;
 
-    return ((upper-lower) % 2 == 0);
+    return !((upper-lower) % 2);
 
 }
-char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_index)
+char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_length)
 {  
+    *length = 0;
+    *var_indices = NULL;
+    *var_length = 0;
+    tokenchar_pair* var_indices2;
+
     int index = 0;
     int j = 0;
     char** tokens;
     int max_length;
-    *length = 0;
-    *var_indices = NULL;
-    *var_index = 0;
-    tokenchar_pair* var_indices2;
     char current_token[TOKEN_SIZE];
+
     bool in_quotes = false;
     bool meta = false;
     int type, prev_type = NONE;
@@ -536,20 +537,12 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
             return tokens;
         }
 
-
-        //Eg: $ followed by a META, or $""
-        if (prev_type == VARIABLE && type != NORMAL && type != QUOTE)
-        {
-            error = VARIABLE_DECLARATION_ERROR;
-            return tokens;
-        }
-        
         //Lets store the index to the variable for later use (when we perform expansion)
 
         if (type == VARIABLE)
         {
-            var_indices2[*var_index].token_index = index;
-            var_indices2[(*var_index)++].char_index = j;
+            var_indices2[*var_length].token_index = index;
+            var_indices2[(*var_length)++].char_index = j;
         }
 
         if (type == QUOTE)
@@ -565,7 +558,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
             meta = false;
         }
 
-        //Just like the token_len function, if a metacharacter terminated a string, then this is the end of a token
+        //Just like the token_init function, if a metacharacter terminated a string, then this is the end of a token
         //So lets save it in into tokens.
         if (meta && (prev_type == NORMAL || prev_type == QUOTE))
         {
@@ -613,56 +606,49 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
 }
 
 // Error handling and variable resetting.
-int handle_error()
+void handle_error()
 {
     if (error == SYSTEM_CALL_ERROR)
-    {
         perror("Error");
-        return 0;
+    
+    else if (error)
+        fprintf(stderr,"%s",errors[error-1]); 
+}
+void tokens_free(char** tokens, int* length)
+{
+    if (tokens)
+    {
+        for (int i = 0; i < (*length)+1; i++)
+            free(tokens[i]);
+
+        if (*length > 0)
+            free(tokens);
+
+        *length = -1;
+        tokens = NULL;
     }
-    
-    if (error)
-        fprintf(stderr,"%s",errors[error]);
-   
 
-    return 0;
-    
 }
-int tokens_free(char** tokens, int* length)
+void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
 {
-    if (!tokens)
-        return 0;
+    if (var_indices)
+    {
+        if (*var_indices_len > 0)
+            free(var_indices);
+            
+        var_indices = NULL;
+        *var_indices_len = -1;
+    }
 
-    for (int i = 0; i < (*length)+1; i++)
-        free(tokens[i]);
-
-    if (*length > 0)
-        free(tokens);
-
-    *length = -1;
-    tokens = NULL;
-    return 0;
-}
-int var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
-{
-    if (!var_indices)
-        return 0;
-    if (*var_indices_len > 0)
-        free(var_indices);
-        
-    var_indices = NULL;
-    *var_indices_len = -1;
-
-    return 0;
 }
 void reset_streams()
 {
-    if (stdin_fd > 0 && !fp)
+    if (stdin_fd > 0)
     {
         dup2(stdin_fd, STDIN_FILENO);
         close(stdin_fd);
     }
-    if (stdout_fd > 0 && !fp)
+    if (stdout_fd > 0)
     {
         dup2(stdout_fd, STDOUT_FILENO);
         close(stdout_fd);
@@ -687,15 +673,35 @@ void reset_in()
     in.output_cat_filename[0] = 0;
     in.redirect_start = 0;
 }
+void free_vars()
+{
+    node* current_node;
+    for (current_node = head; current_node; current_node = current_node->next)
+    {
+        if (current_node->prev)
+            node_delete(current_node->prev);
+    }
 
+    node_delete(current_node);
+}
+void free_stack()
+{
+    char* popped_value;
+
+    while(!pop(&popped_value))
+        free(popped_value);
+
+    free(stack[0]);
+}
 //Shell variables.
 int init_vars(void)
 {
     // Set every enviroment variable as a shell variable, with the bool env set to true.
-    for (int i = 0; environ[i]; i++) 
+
+    for (char** env_var = environ; *env_var; env_var++) 
     {
         char var[VALUE_SIZE];
-        strncpy(var,environ[i],VALUE_SIZE);
+        strncpy(var,*env_var,VALUE_SIZE);
 
         char* key = strtok(var, "=");
         if (error = node_insert(key, getenv(key), true))
@@ -719,7 +725,7 @@ int init_vars(void)
     if (!node_search("PROMPT") && (error = node_insert("PROMPT", "init>", true)))
         return error;
 
-    if (!node_search("TERMINAL") && (error = node_insert("TERMINAL", getenv("TERM"), true)))
+    if (!node_search("TERMINAL") && (error = node_insert("TERMINAL", getenv("TERM")? getenv("TERM"):ttyname(0), true)))
         return error;
    
     if (!node_search("EXITCODE") && (error = node_insert("EXITCODE", "NONE", true)))
@@ -756,17 +762,18 @@ int init_vars(void)
     if (error = push(cwd)) //Pushing cwd onto the directory stack
         return error;
 
-    chdir(cwd);
+    if (chdir(cwd))
+        return SYSTEM_CALL_ERROR;
     
-    //______________________________________________________________________
-
 
     return 0;
 
 } 
 bool vars_valid(char* token, int j)
 {
-    
+    if (!j && token[j] >= '0'  && token[j] <= '9')
+        return false;
+        
     if (    (token[j] >= '0'  && token[j] <= '9') || 
             (token[j] >= 'a'  && token[j] <= 'z') || 
             (token[j] >= 'A'  && token[j] <= 'Z') || 
@@ -814,9 +821,11 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
     else //Using  <Any Chars> $... <Illegeal Chars> notation
     {
         //Stop until you encounter an illegal character,
-        for (int j = 1; j < end; j++)
+
+        for (int j = 0; j < end-1; j++)
         {
-            if (!vars_valid(token,j))
+            //Ignoring the first character since it is the Variable Character
+            if (!vars_valid(token+1,j))
             {
                 end =  j;
                 token[end] = '\0';
@@ -825,7 +834,7 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
         }
             
     }
-    //Check if its in the environment variables
+    //Check if its in the shell variables
 
     for (node* current_node = head; current_node != NULL; current_node = current_node->next)
     {
@@ -850,10 +859,10 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
     
     
 
-    if (equal)
+    if (equal) //If there was no match
         return VARIABLE_EXPANSION_ERROR;
 
-    //For the remaining variables within the token, add to char_index: - var_name(including $) + value_len
+    //For the remaining variables within the token, add to char_index: - len_of_var_name(including $) + value_len
     // Since the current token will be edited, all pointers to variable characters must be shifted.
 
     for (int j = m+1; j < var_indices_len; j++)
@@ -878,7 +887,7 @@ int assign_vars(char** tokens, int length, int i)
 
     strcpy(current_token,tokens[i]);
 
-    for (char* string = strtok(current_token, "="); (string != NULL) && (strlen(string) != current_token_len); string = strtok(NULL, "="))
+    for (char* string = strtok(current_token, "="); string && (strlen(string) != current_token_len); string = strtok(NULL, "="))
     {
         if (j == 2)
             return VARIABLE_ASSIGNMENT_ERROR;
@@ -888,10 +897,13 @@ int assign_vars(char** tokens, int length, int i)
     //If j != 2 then that means the token didn't have exactly one '='
     if (j != 2)
         return VARIABLE_ASSIGNMENT_ERROR;
-
-    if (key_value[0][0] >= '0' && key_value[0][0] <= '9')
-        return VARIABLE_NAME_ERROR;
     
+    for (int i = 0; i < strlen(key_value[0]); i++)
+    {
+        if (!vars_valid(key_value[0],i))
+            return VARIABLE_NAME_ERROR;
+    }
+
     
     //If: The node doesn't exist
     //Then: Create it and assign it the values given.
@@ -925,28 +937,20 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
     {
         case EXIT_CMD:
         {
-            int exit_value;
             int error;
             //Maximum arg size is 1
             if (arg_num > 1)
                 return INVALID_ARGS_ERROR;
 
-            //If the argument is provided
-            if (arg_num == 1)
+            exit_program = true;
+            //If the argument is provided, save the first argument into exit_value as an integer.
+            if (arg_num == 1 && (error = str_to_int(&exit_value,args[0])))
             {
-                //If the argument was translated to int
-                if(!(error = str_to_int(&exit_value,args[0])))
-                {
-                    printf("Shell terminated with exit code [%d]\n",exit_value);
-                    exit(exit_value);
-                }
-                
-                else
-                    return error;
+                exit_program = false;        
+                return error;
             }
-            //If no argument was given
-            printf("Shell terminated with exit code [0]\n");
-            exit(0);
+
+            return 0;
                 
         }
         case ECHO_CMD:
@@ -1080,6 +1084,8 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
 
             if (error = print_stack()) //Prints the stack to view the new changes
                 return error;
+
+            free(popped_value);
 
             return 0;
         }
@@ -1217,17 +1223,13 @@ int execute_external(char** tokens, int token_num)
 //Redirects for internal commands.
 int handle_redirect(char** tokens, int state, int j)
 {
-
     //What redirect is it?
-    if (state == INPUT)
-        strcpy(in.input_filename, tokens[in.redirect_start+j]);
-
-    if (state == OUTPUT)
-        strcpy(in.output_filename, tokens[in.redirect_start+j]);
-
-    if (state == OUTPUT_CAT)
-        strcpy(in.output_cat_filename, tokens[in.redirect_start+j]);
-    
+    switch (state)
+    {
+        case INPUT: strcpy(in.input_filename, tokens[in.redirect_start+j]); break;
+        case OUTPUT: strcpy(in.output_filename, tokens[in.redirect_start+j]); break;
+        case OUTPUT_CAT: strcpy(in.output_cat_filename, tokens[in.redirect_start+j]);
+    }
     return 0;
 
 }
@@ -1242,11 +1244,8 @@ int hook_streams()
     // Do the input and output have to be redirected?
     // Opens files, links them with respective stream.
 
-    
-    // if (r.input[0] && !read_from_file)
-    if (in.input_filename[0] && !fp)
+    if (in.input_filename[0])
     {
-        // if ((fd_input = open(r.input, O_RDWR)) == -1)
         if ((fd_input = open(in.input_filename, O_RDWR)) == -1)
             error = SYSTEM_CALL_ERROR;
         else
@@ -1259,10 +1258,9 @@ int hook_streams()
         }
     } 
     
-    // if (r.output[0] && !read_from_file)
-    if (in.output_filename[0] && !fp)
+
+    if (in.output_filename[0])
     {
-        // if ((fd_output = open(r.output, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
         if ((fd_output = open(in.output_filename, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
             error = SYSTEM_CALL_ERROR;
         else
@@ -1273,11 +1271,9 @@ int hook_streams()
             close(fd_output);
         }
     }
-    
-    // if (r.output_cat[0] && !read_from_file)
-    if (in.output_cat_filename[0] && !fp)
+
+    if (in.output_cat_filename[0])
     {
-        // if ((fd_output = open(r.output_cat, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
         if ((fd_output = open(in.output_cat_filename, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
             error = SYSTEM_CALL_ERROR;
         else

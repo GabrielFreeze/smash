@@ -3,58 +3,42 @@
 #define KEY_SIZE 2000
 #define VALUE_SIZE 2000
 #define BUFSIZE 256
-#define ERRORS_LENGTH 20
-#define INTERNAL_COMMANDS_LEN 11
 
-#define NONE -1
-#define NORMAL 0
-#define META 1
-#define ESCAPE 2
-#define VARIABLE 3
-#define QUOTE 4
-#define EQUAL 5
-#define OUTPUT 6
-#define OUTPUT_CAT 7
-#define INPUT 8
-#define PIPE 9
+enum char_types{NONE = -1,
+                NORMAL,
+                META,
+                ESCAPE,
+                VARIABLE,
+                QUOTE,
+                EQUAL,
+                OUTPUT,
+                OUTPUT_CAT,
+                INPUT,
+                PIPE};
+
+enum error_types{MEMORY_ERROR = 1,
+                 BUFFER_OVERFLOW_ERROR,
+                 PARSE_ERROR,
+                 VARIABLE_DECLARATION_ERROR,
+                 VARIABLE_EXPANSION_ERROR,
+                 VARIABLE_ASSIGNMENT_ERROR,
+                 VARIABLE_NAME_ERROR,
+                 NODE_NOT_FOUND_ERROR,
+                 NODE_ASSIGNMENT_ERROR,
+                 STACK_FULL_ERROR,
+                 STACK_EMPTY_ERROR,
+                 TOKENS_MEMORY_ERROR,
+                 VARINDICES_MEMORY_ERROR,
+                 INVALID_ARGS_ERROR,
+                 ENV_VARIABLE_NOT_FOUND_ERROR,
+                 ENV_VARIABLE_ASSIGNMENT_ERROR,
+                 CWD_NOT_FOUND_ERROR,
+                 NULL_GIVEN_ERROR,
+                 NOT_A_DIR_ERROR,
+                 SYSTEM_CALL_ERROR};
 
 
-#define MEMORY_ERROR 1
-#define BUFFER_OVERFLOW_ERROR 2
-#define PARSE_ERROR 3
-#define VARIABLE_DECLARATION_ERROR 4
-#define VARIABLE_EXPANSION_ERROR 5
-#define VARIABLE_ASSIGNMENT_ERROR 6
-#define VARIABLE_NAME_ERROR 7
-#define NODE_NOT_FOUND_ERROR 8
-#define NODE_ASSIGNMENT_ERROR 9
-#define STACK_FULL_ERROR 10
-#define STACK_EMPTY_ERROR 11
-#define TOKENS_MEMORY_ERROR 12
-#define VARINDICES_MEMORY_ERROR 13
-#define INVALID_ARGS_ERROR 14
-#define ENV_VARIABLE_NOT_FOUND_ERROR 15
-#define ENV_VARIABLE_ASSIGNMENT_ERROR 16
-#define CWD_NOT_FOUND_ERROR 17
-#define NULL_GIVEN_ERROR 18
-#define NOT_A_DIR_ERROR 19
-#define SYSTEM_CALL_ERROR 20
-#define FORK_ERROR 21
-
-#define EXIT_CMD 0
-#define ECHO_CMD 1
-#define CD_CMD 2
-#define SHOWVAR_CMD 3
-#define EXPORT_CMD 4
-#define UNSET_CMD 5
-#define SHOWENV_CMD 6
-#define PUSHD_CMD 7
-#define POPD_CMD 8
-#define DIRS_CMD 9
-#define SOURCE_CMD 10
-
-#define STACK_SIZE 100
-
+#define ERRORS_LENGTH 19
 #define MEMORY_ERROR_MSG "A problem occured while dynamically allocating memory\n"
 #define BUFFER_ERROR_MSG "Did a token exceed its maximum buffer size?\n"
 #define PARSE_ERROR_MSG "Error while parsing.\n"
@@ -75,6 +59,20 @@
 #define NULL_GIVEN_MSG "The program encountered a NULL instead of a value.\n"
 #define NOT_A_DIR_MSG "Not a directory.\n"
 
+#define INTERNAL_COMMANDS_LEN 11
+enum cmds{EXIT_CMD,
+          ECHO_CMD,
+          CD_CMD,
+          SHOWVAR_CMD,
+          EXPORT_CMD,
+          UNSET_CMD,
+          SHOWENV_CMD,
+          PUSHD_CMD,
+          POPD_CMD,
+          DIRS_CMD,
+          SOURCE_CMD};
+
+#define STACK_SIZE 100
 
 
 typedef struct node_
@@ -85,6 +83,7 @@ typedef struct node_
     struct node_ *next;
     struct node_ *prev;
 } node;
+
 typedef struct tokenchar_pair_struct
 {
     int token_index;
@@ -99,42 +98,43 @@ typedef struct token_section_
     bool cat;
     int redirect_count;
 } token_section[BUFSIZE];
+
 typedef struct redirect_ext_
 {
-    token_section section[BUFSIZE]; //r.chunk_array
-    int pipe_count; //p.count
-    int pipe_start; //p.start
-    int pipe_end; // p.end
-    int pipe_indices[BUFSIZE];  //p.array
-    int redirect_end; //r.end
+    token_section section[BUFSIZE]; 
+    int pipe_count; 
+    int pipe_start; 
+    int pipe_end; 
+    int pipe_indices[BUFSIZE];
+    int redirect_end;
 } redirect_ext;
 
 typedef struct redirect_int_
 {
-    int redirect_indices[BUFSIZE]; //r.array
-    int redirect_count; //r.count
+    int redirect_indices[BUFSIZE]; 
+    int redirect_count; 
 
-    char input_filename[TOKEN_SIZE]; //r.input
-    char output_filename[TOKEN_SIZE]; //r.output
-    char output_cat_filename[TOKEN_SIZE]; //r.output_cat
-
-    int redirect_start;//r.start
+    char input_filename[TOKEN_SIZE]; 
+    char output_filename[TOKEN_SIZE];
+    char output_cat_filename[TOKEN_SIZE];
+    
+    int redirect_start;
 } redirect_int;
 
 
 redirect_ext ex;
 redirect_int in;
 
-int errors_length;
+
 char errors[ERRORS_LENGTH][100];
 char prompt_default [20];
-char  exit_keyword[20];
 char metacharacters [20];
 char quotes[20];
 char internal_commands[INTERNAL_COMMANDS_LEN][TOKEN_SIZE];
 
-int internal_commands_len;
 int error;
+int exit_value;
+bool exit_program;
 
 FILE* fp;
 node* head;
@@ -147,7 +147,6 @@ int top;  //Will always point to the last element of stack. -1 if stack is empty
 int new_start;
 int stdin_fd;
 int stdout_fd;
-char filename[TOKEN_SIZE];
 
 extern char **environ;
 
@@ -160,12 +159,14 @@ bool is_deref(char* string, int upper);
 bool is_meta(char* string, int j);
 
 // Error handling and variable resetting.
-int handle_error();
-int tokens_free(char** tokens, int* length);
-int var_indices_free(tokenchar_pair* var_indices, int* var_indices_len);
+void handle_error();
+void tokens_free(char** tokens, int* length);
+void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len);
 void reset_in();
 void reset_ex();
 void reset_streams();
+void free_vars();
+void free_stack();
 
 //Shell variables.
 bool is_var(char* token);
