@@ -57,9 +57,6 @@ void init()
     stdin_fd = -1;
     stdout_fd = -1;
 
-    ex.pipe_start = -1;
-    ex.pipe_end = -1;
-
 }
 
 // Linked List
@@ -266,12 +263,13 @@ int change_directory(char* cwd)
     if (error = change_topmost(new_cwd)) //Updating dierctory stack by changing the top most element.
         return error;
     
+    free(new_cwd);
     return 0;
 
 }
 
 // Tokenisation.
-int tokens_init(char* string)
+int tokens_init(char* string, redirect_int* in, redirect_ext* ex)
 {
     int count = 0;
     bool in_quotes = false;
@@ -300,28 +298,28 @@ int tokens_init(char* string)
                 if (special_before)
                     return 0;
 
-                if (++ex.pipe_count == BUFSIZE)
+                if (++ex->pipe_count == BUFSIZE)
                     return 0;
                 
-                ex.section[ex.pipe_count].output = 0;
-                ex.section[ex.pipe_count].input = 0;
-                ex.section[ex.pipe_count].redirect_count = 0;
+                ex->section[ex->pipe_count].output = 0;
+                ex->section[ex->pipe_count].input = 0;
+                ex->section[ex->pipe_count].redirect_count = 0;
 
 
             
                 special_before = true;
-                ex.pipe_end =  (prev_type == META)? count:count+1;
+                ex->pipe_end =  (prev_type == META)? count:count+1;
 
                  
-                if (ex.pipe_start < 0)
-                    ex.pipe_start = ex.pipe_end;
+                if (ex->pipe_start < 0)
+                    ex->pipe_start = ex->pipe_end;
                    
-                if (!i || !ex.pipe_start)
+                if (!i || !ex->pipe_start)
                     return 0;
                 
                 
-                ex.pipe_indices[ex.pipe_count-1] = ex.pipe_end;
-                ex.pipe_indices[ex.pipe_count] = 0;
+                ex->pipe_indices[ex->pipe_count-1] = ex->pipe_end;
+                ex->pipe_indices[ex->pipe_count] = 0;
 
             }
 
@@ -337,35 +335,35 @@ int tokens_init(char* string)
                 if (special_before)
                     return 0;
 
-                if (++in.redirect_count == BUFSIZE)
+                if (++in->redirect_count == BUFSIZE)
                     return 0;
 
                 special_before = true;
 
-                ex.redirect_end = (prev_type == META)? count:count+1;
+                ex->redirect_end = (prev_type == META)? count:count+1;
 
                 
-                if (!in.redirect_start)
-                    in.redirect_start = ex.redirect_end;
+                if (!in->redirect_start)
+                    in->redirect_start = ex->redirect_end;
                 
-                if (!i || !in.redirect_start)
+                if (!i || !in->redirect_start)
                     return 0;
                 
                 
-                in.redirect_indices[in.redirect_count-1] = type;
-                ex.section[ex.pipe_count].redirect_count ++;
+                in->redirect_indices[in->redirect_count-1] = type;
+                ex->section[ex->pipe_count].redirect_count ++;
                 
                 if (type == INPUT)
-                    ex.section[ex.pipe_count].input = ex.redirect_end;
+                    ex->section[ex->pipe_count].input = ex->redirect_end;
                 if (type == OUTPUT)
                 {
-                    ex.section[ex.pipe_count].output = ex.redirect_end;
-                    ex.section[ex.pipe_count].cat = false;
+                    ex->section[ex->pipe_count].output = ex->redirect_end;
+                    ex->section[ex->pipe_count].cat = false;
                 }
                 if (type == OUTPUT_CAT)
                 {
-                    ex.section[ex.pipe_count].output = ex.redirect_end;
-                    ex.section[ex.pipe_count].cat = true;
+                    ex->section[ex->pipe_count].output = ex->redirect_end;
+                    ex->section[ex->pipe_count].cat = true;
 
                 }
             }
@@ -396,10 +394,10 @@ int tokens_init(char* string)
         return 0;
 
     //There mustn't be an odd amount of quotes or a redirect or a pipe character in the last token.
-    if (in_quotes || ex.redirect_end == count || ex.pipe_end == count)
+    if (in_quotes || ex->redirect_end == count || ex->pipe_end == count)
         return 0;
 
-    ex.pipe_indices[ex.pipe_count] = count;
+    ex->pipe_indices[ex->pipe_count] = count;
     return count;
 
     
@@ -491,7 +489,7 @@ bool is_deref(char* string, int upper)
     return !((upper-lower) % 2);
 
 }
-char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_length)
+char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_length, redirect_int* in, redirect_ext* ex)
 {  
     *length = 0;
     *var_indices = NULL;
@@ -508,7 +506,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
     bool meta = false;
     int type, prev_type = NONE;
 
-    if (!(max_length = tokens_init(input)))
+    if (!(max_length = tokens_init(input, in, ex)))
     {
         error = PARSE_ERROR;
         return NULL;
@@ -636,8 +634,7 @@ void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
 {
     if (var_indices)
     {
-        if (*var_indices_len > 0)
-            free(var_indices);
+        free(var_indices);
             
         var_indices = NULL;
         *var_indices_len = -1;
@@ -657,24 +654,24 @@ void reset_streams()
         close(stdout_fd);
     }
 }
-void reset_ex()
+void reset_ex(redirect_ext* ex)
 {
-    ex.section[0].input = 0;
-    ex.section[0].output = 0;
-    ex.section[0].redirect_count = 0;
-    ex.pipe_count = 0;
-    ex.pipe_start = -1;
-    ex.pipe_end = -1;
-    ex.redirect_end = 0;
-    ex.execute_start = 0;
+    ex->section[0].input = 0;
+    ex->section[0].output = 0;
+    ex->section[0].redirect_count = 0;
+    ex->pipe_count = 0;
+    ex->pipe_start = -1;
+    ex->pipe_end = -1;
+    ex->redirect_end = 0;
+    ex->execute_start = 0;
 }
-void reset_in()
+void reset_in(redirect_int* in)
 {
-    in.redirect_count = 0;
-    in.input_filename[0] = 0;
-    in.output_filename[0] = 0;
-    in.output_cat_filename[0] = 0;
-    in.redirect_start = 0;
+    in->redirect_count = 0;
+    in->input_filename[0] = 0;
+    in->output_filename[0] = 0;
+    in->output_cat_filename[0] = 0;
+    in->redirect_start = 0;
 }
 void free_vars()
 {
@@ -1120,9 +1117,9 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             return BUFFER_OVERFLOW_ERROR;
     }
 }
-int execute_external(char** tokens)
+int execute_external(char** tokens, redirect_ext* ex)
 {
-    int fd[ex.pipe_count*2];
+    int fd[ex->pipe_count*2];
     int* current_fd = fd;
     int* previous_fd;
     pid_t pid;
@@ -1134,7 +1131,7 @@ int execute_external(char** tokens)
     int exitcode;
     char str[10];
     
-    for (int i = 0; i < ex.pipe_count+1; i++, previous_fd = current_fd, current_fd += 2)
+    for (int i = 0; i < ex->pipe_count+1; i++, previous_fd = current_fd, current_fd += 2)
     {
         int argc = 0;
         char* args[BUFSIZE];
@@ -1143,14 +1140,14 @@ int execute_external(char** tokens)
         // This for loops iterates over the a set of arguments seperated by pipes.
         // If the set of arguments has redirection files specified, they are not iterated over.
 
-        for (int j = ex.execute_start; j < ex.pipe_indices[i]-ex.section[i].redirect_count; j++)
+        for (int j = ex->execute_start; j < ex->pipe_indices[i]-ex->section[i].redirect_count; j++)
             args[argc++] = tokens[j];
         args[argc] = NULL;
         
         // The next iterations starts from  the end of the previous.
-        ex.execute_start = ex.pipe_indices[i];
+        ex->execute_start = ex->pipe_indices[i];
         
-        if (i < ex.pipe_count)
+        if (i < ex->pipe_count)
             pipe(current_fd);
          
         if ((pid = fork()) < 0)
@@ -1159,7 +1156,7 @@ int execute_external(char** tokens)
         {
             child_pids[child_count++] = getpid();
             // Hook output based on pipeline
-            if (i < ex.pipe_count)
+            if (i < ex->pipe_count)
             {
                 close(current_fd[0]);
                 dup2(current_fd[1], STDOUT_FILENO);
@@ -1167,10 +1164,10 @@ int execute_external(char** tokens)
                 
             }
             //Hook output if the user specified a file
-            if (output_file = ex.section[i].output)
+            if (output_file = ex->section[i].output)
             {
                 //Opens file in rw or a+
-                if ((fd_output = open(tokens[output_file], ex.section[i].cat? (O_CREAT | O_APPEND | O_RDWR):(O_CREAT | O_RDWR | O_TRUNC), S_IRWXU)) < 0)
+                if ((fd_output = open(tokens[output_file], ex->section[i].cat? (O_CREAT | O_APPEND | O_RDWR):(O_CREAT | O_RDWR | O_TRUNC), S_IRWXU)) < 0)
                 {
                     perror("File Error");
                     exit(1);
@@ -1188,7 +1185,7 @@ int execute_external(char** tokens)
                 close(previous_fd[0]);
             }
             // Hooks input if the user specified a file
-            if (input_file = ex.section[i].input)
+            if (input_file = ex->section[i].input)
             {
                 if ((fd_input = open(tokens[input_file], O_RDWR)) < 0)
                 {
@@ -1228,19 +1225,19 @@ int execute_external(char** tokens)
 }
 
 //Redirects for internal commands.
-int handle_redirect(char** tokens, int state, int j)
+int handle_redirect(char** tokens, int state, int j, redirect_int* in)
 {
     //What redirect is it?
     switch (state)
     {
-        case INPUT: strcpy(in.input_filename, tokens[in.redirect_start+j]); break;
-        case OUTPUT: strcpy(in.output_filename, tokens[in.redirect_start+j]); break;
-        case OUTPUT_CAT: strcpy(in.output_cat_filename, tokens[in.redirect_start+j]);
+        case INPUT: strcpy(in->input_filename, tokens[in->redirect_start+j]); break;
+        case OUTPUT: strcpy(in->output_filename, tokens[in->redirect_start+j]); break;
+        case OUTPUT_CAT: strcpy(in->output_cat_filename, tokens[in->redirect_start+j]);
     }
     return 0;
 
 }
-int hook_streams()
+int hook_streams(redirect_int* in)
 {
     int match = 1;
     int fd_input;
@@ -1251,9 +1248,9 @@ int hook_streams()
     // Do the input and output have to be redirected?
     // Opens files, links them with respective stream.
 
-    if (in.input_filename[0])
+    if (in->input_filename[0])
     {
-        if ((fd_input = open(in.input_filename, O_RDWR)) == -1)
+        if ((fd_input = open(in->input_filename, O_RDWR)) == -1)
             error = SYSTEM_CALL_ERROR;
         else
         {
@@ -1266,9 +1263,9 @@ int hook_streams()
     } 
     
 
-    if (in.output_filename[0])
+    if (in->output_filename[0])
     {
-        if ((fd_output = open(in.output_filename, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
+        if ((fd_output = open(in->output_filename, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
             error = SYSTEM_CALL_ERROR;
         else
         {
@@ -1279,9 +1276,9 @@ int hook_streams()
         }
     }
 
-    if (in.output_cat_filename[0])
+    if (in->output_cat_filename[0])
     {
-        if ((fd_output = open(in.output_cat_filename, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
+        if ((fd_output = open(in->output_cat_filename, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
             error = SYSTEM_CALL_ERROR;
         else
         {

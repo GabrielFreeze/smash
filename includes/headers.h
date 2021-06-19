@@ -123,8 +123,7 @@ typedef struct redirect_int_
 } redirect_int;
 
 
-redirect_ext ex;
-redirect_int in;
+
 
 int child_pids[BUFSIZE];
 int child_count;
@@ -153,9 +152,9 @@ extern char **environ;
 
 void init();
 //Tokenisation
-int tokens_len(char* string);
+int tokens_init(char* string, redirect_int* in, redirect_ext* ex);
 int char_type(char* string, int j);
-char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_index);
+char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_index, redirect_int* in, redirect_ext* ex);
 bool is_deref(char* string, int upper);
 bool is_meta(char* string, int j);
 
@@ -163,8 +162,8 @@ bool is_meta(char* string, int j);
 void handle_error();
 void tokens_free(char** tokens, int* length);
 void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len);
-void reset_in();
-void reset_ex();
+void reset_in(redirect_int* in);
+void reset_ex(redirect_ext* ex);
 void reset_streams();
 void free_vars();
 void free_stack();
@@ -178,11 +177,11 @@ int assign_vars(char** tokens, int length, int i, int k);
 
 // Commands.
 int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j);
-int execute_external(char** tokens);
+int execute_external(char** tokens, redirect_ext* ex);
 
 //Redirects for internal commands.
-int handle_redirect(char* tokens[TOKEN_SIZE], int redirect_state, int j);
-int hook_streams();
+int handle_redirect(char* tokens[TOKEN_SIZE], int redirect_state, int j, redirect_int* in);
+int hook_streams(redirect_int* in);
 
 //Miscellaneous
 char* get_input_from_file(FILE* fp);

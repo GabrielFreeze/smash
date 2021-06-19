@@ -16,7 +16,10 @@ int main(void)
     init();
 
     char* input;
-
+    redirect_ext ex;
+    redirect_int in;
+    reset_in(&in);
+    reset_ex(&ex);
     int token_num;
     char** tokens = NULL;
 
@@ -61,7 +64,7 @@ int main(void)
         if (input && input[0] != '\0' && input[0] != '/')
         {
             //Tokenise the input.
-            if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
+            if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len, &in, &ex)))
                 goto end;
             
             /*
@@ -116,7 +119,7 @@ int main(void)
 
                 //If there are pipes then it its surely not an internal command.
                 if (ex.pipe_count)
-                    error = execute_external(tokens);
+                    error = execute_external(tokens, &ex);
 
                 //Check if the first command is an internal command or not
                 else
@@ -129,7 +132,7 @@ int main(void)
 
                     //It is an external command.
                     if (match)
-                        error = execute_external(tokens);
+                        error = execute_external(tokens, &ex);
 
                     //It is an internal command.
                     else
@@ -146,7 +149,7 @@ int main(void)
                         //Configure redirects
                         for (i = 0; i < in.redirect_count; i++) 
                         {
-                            if (error = handle_redirect(tokens, in.redirect_indices[i], i))
+                            if (error = handle_redirect(tokens, in.redirect_indices[i], i, &in))
                                 goto end;
                         }
 
@@ -159,7 +162,7 @@ int main(void)
                         token_num is not simply set to in.redirect_start because token_num must still reflect the actual number of elements dynamically allocated in tokens,
                         so they can be properly freed afterwards using token_num */
 
-                        if (!(error = hook_streams()))
+                        if (!(error = hook_streams(&in)))
                             error = execute_internal(tokens+assign_count+1, (in.redirect_start? in.redirect_start:token_num)-assign_count-1, j);
 
                     } 
@@ -174,8 +177,8 @@ int main(void)
                 tokens_free(tokens,&token_num); //Frees array holding the tokens.
                 var_indices_free(var_indices,&var_indices_len); //Frees array holding variable positions.
                 reset_streams(); // Reverts to standard input/output streams
-                reset_ex(); // Resets the 'ex' struct to default values
-                reset_in(); // Resets the 'in' struct to default values
+                reset_ex(&ex); // Resets the 'ex' struct to default values
+                reset_in(&in); // Resets the 'in' struct to default values
 
                 //If the user decides to delete the PROMPT variable, the default value should display.
                 node* current_node;
