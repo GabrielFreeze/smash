@@ -16,7 +16,7 @@ enum char_types{NONE = -1,
                 INPUT,
                 PIPE};
 
-enum error_types{MEMORY_ERROR = 1,
+typedef enum error_types{MEMORY_ERROR = 1,
                  BUFFER_OVERFLOW_ERROR,
                  PARSE_ERROR,
                  VARIABLE_DECLARATION_ERROR,
@@ -35,7 +35,7 @@ enum error_types{MEMORY_ERROR = 1,
                  CWD_NOT_FOUND_ERROR,
                  NULL_GIVEN_ERROR,
                  NOT_A_DIR_ERROR,
-                 SYSTEM_CALL_ERROR};
+                 SYSTEM_CALL_ERROR} err;
 
 
 #define ERRORS_LENGTH 19
@@ -125,14 +125,15 @@ typedef struct redirect_int_
 redirect_ext ex;
 redirect_int in;
 
-
+int child_pids[BUFSIZE];
+int child_count;
 char errors[ERRORS_LENGTH][100];
 char prompt_default [20];
 char metacharacters [20];
 char quotes[20];
 char internal_commands[INTERNAL_COMMANDS_LEN][TOKEN_SIZE];
 
-int error;
+err error;
 int exit_value;
 bool exit_program;
 
@@ -188,6 +189,7 @@ char* get_input_from_file(FILE* fp);
 int contains_word(char* input, char* key);
 int contains_char(char* string, char a);
 int str_to_int(int* value, char* string);
+void SIGINT_handler(int signum);
 
 //Linked List
 int node_insert(char* key, char* value, bool env);

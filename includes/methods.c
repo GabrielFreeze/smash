@@ -114,6 +114,9 @@ int node_delete(node* current_node)
 {
     if (!current_node)
         return NODE_NOT_FOUND_ERROR;
+    
+    if (current_node->env && unsetenv(current_node->key)) 
+        return ENV_VARIABLE_NOT_FOUND_ERROR;
 
     if (current_node == head)
       head = head->next;
@@ -952,7 +955,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
 
             return 0;
                 
-        }
+        }break;
         case ECHO_CMD:
         {
             if (arg_num < 1)
@@ -962,11 +965,10 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
                 printf("%s ",args[i]);
             printf("\n");
             return 0;
-        }
+        }break;
         case CD_CMD:
-        {
+        { 
            //Check if arg_num is valid and change the environment variable
-           //The only reason chdir should fail is because the supplied argument was invalid. 
             if (arg_num != 1)
                 return INVALID_ARGS_ERROR;
 
@@ -978,7 +980,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             if (error = change_directory(args[0]))
                 return error;
             return 0;
-        }
+        }break;
         case SHOWVAR_CMD:
         {   
 
@@ -997,37 +999,43 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             }
 
             return 0;
-        }
+        }break;
         case EXPORT_CMD:
         {
-            if (arg_num != 1)
+            if (!arg_num)
                 return INVALID_ARGS_ERROR;
 
-            node* current_node;
-            if (!(current_node = node_search(args[0])))
-                return NODE_NOT_FOUND_ERROR;
+            for (int i = 0; i < arg_num; i++)
+            {
+                node* current_node;
+                if (!(current_node = node_search(args[i])))
+                    return NODE_NOT_FOUND_ERROR;
 
-            if(error = node_export(current_node))
-                return error;
+                if(error = node_export(current_node))
+                    return error;
+            }
             
             return 0;
-        }
+        }break;
         case UNSET_CMD:
         {
-            if (arg_num != 1)
+            if (!arg_num)
                 return INVALID_ARGS_ERROR;
 
-            node* current_node;
-            if (current_node = node_search(args[0]))
-                node_delete(current_node);
-            else
-                return NODE_NOT_FOUND_ERROR;
-
-            if (unsetenv(args[0]))
-                return ENV_VARIABLE_NOT_FOUND_ERROR;
+            for (int i = 0; i < arg_num; i++)
+            {
+                node* current_node;
+                if (current_node = node_search(args[i]))
+                {
+                    if (error = node_delete(current_node));
+                        return error;
+                }
+                else
+                    return NODE_NOT_FOUND_ERROR;
+            }
 
             return 0;
-        }
+        }break;
         case SHOWENV_CMD:
         {
             if (!arg_num)
@@ -1049,7 +1057,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             }
 
             return 0;
-        }
+        }break;
         case PUSHD_CMD:
         {
             if (arg_num != 1)
@@ -1070,7 +1078,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
                 return error;
 
             return 0;
-        }
+        }break;
         case POPD_CMD:
         {
             if (arg_num)
@@ -1088,7 +1096,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             free(popped_value);
 
             return 0;
-        }
+        }break;
         case DIRS_CMD:
         {
             if (arg_num)
@@ -1098,7 +1106,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
                 return error;
             
             return 0;
-        }
+        }break;
         case SOURCE_CMD:
         {
             if (arg_num != 1)
@@ -1108,10 +1116,10 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
                 return SYSTEM_CALL_ERROR;
 
             return 0;
-        }
+        }break;
       
         default:
-            return 0;
+            return BUFFER_OVERFLOW_ERROR;
     }
 }
 int execute_external(char** tokens, int token_num)
@@ -1136,7 +1144,6 @@ int execute_external(char** tokens, int token_num)
 
         // This for loops iterates over the a set of arguments seperated by pipes.
         // If the set of arguments has redirection files specified, they are not iterated over.
-
         for (int j = new_start; j < ex.pipe_indices[i]-ex.section[i]->redirect_count; j++)
             args[argc++] = tokens[j];
         args[argc] = NULL;
@@ -1151,7 +1158,7 @@ int execute_external(char** tokens, int token_num)
             return SYSTEM_CALL_ERROR;
         else if (!pid) // Child Process
         {
-
+            child_pids[child_count++] = getpid();
             // Hook output based on pipeline
             if (i < ex.pipe_count)
             {
@@ -1204,18 +1211,19 @@ int execute_external(char** tokens, int token_num)
             close(previous_fd[1]);
         }
 
-        if (wait(&status) > 0 && WIFEXITED(status))
-        { 
-            exitcode = WEXITSTATUS(status);
-            //Converts int to string
-            sprintf(str, "%d", exitcode);
-
-            //Stores exitcode in shell variable EXITCODE
-            if (error = node_edit(node_search("EXITCODE"), str)) 
-                fprintf(stderr,"Could not save exitcode");
-        } 
-
     }
+    while (wait(&status) > 0); //Wait for all child processes to terminate.
+
+    if (WIFEXITED(status)) // Status of the last child process.
+    { 
+        exitcode = WEXITSTATUS(status);
+        //Converts int to string
+        sprintf(str, "%d", exitcode);
+
+        //Stores exitcode in shell variable EXITCODE
+        if (error = node_edit(node_search("EXITCODE"), str)) 
+            fprintf(stderr,"Could not save exitcode\n");
+    } 
 
     return 0;
 }
@@ -1371,4 +1379,8 @@ int contains_word(char* input, char* key)
 
 
 }
-
+void SIGINT_handler(int signum)
+{
+    while (child_count--)
+        kill(child_pids[child_count], SIGTERM);
+}

@@ -30,7 +30,7 @@ int main(void)
     char* prompt;
     
     setbuf(stdout, NULL);
-    signal(SIGINT, SIG_IGN);
+    signal(SIGINT, SIGINT_handler);
 
     //Initialise all shell variables.
     if (exit_program = (error = init_vars()))
@@ -170,6 +170,5 @@ int main(void)
     free_vars(); //Free all shell variables
     free_stack(); //Free all items in the directory stack
 
-
-    return 0;
+    return exit_value;
 }
