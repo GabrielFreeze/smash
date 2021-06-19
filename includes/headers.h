@@ -107,6 +107,7 @@ typedef struct redirect_ext_
     int pipe_end; 
     int pipe_indices[BUFSIZE];
     int redirect_end;
+    int execute_start;
 } redirect_ext;
 
 typedef struct redirect_int_
@@ -145,7 +146,6 @@ int vars_len;
 char* stack[STACK_SIZE];     
 int top;  //Will always point to the last element of stack. -1 if stack is empty.
 
-int new_start;
 int stdin_fd;
 int stdout_fd;
 

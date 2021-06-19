@@ -666,7 +666,7 @@ void reset_ex()
     ex.pipe_start = -1;
     ex.pipe_end = -1;
     ex.redirect_end = 0;
-    new_start = 0;
+    ex.execute_start = 0;
 }
 void reset_in()
 {
@@ -679,13 +679,15 @@ void reset_in()
 void free_vars()
 {
     node* current_node;
+    
     for (current_node = head; current_node; current_node = current_node->next)
     {
         if (current_node->prev)
             node_delete(current_node->prev);
     }
 
-    node_delete(current_node);
+    
+    node_delete(tail);
 }
 void free_stack()
 {
@@ -830,7 +832,7 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
             //Ignoring the first character since it is the Variable Character
             if (!vars_valid(token+1,j))
             {
-                end =  j;
+                end = j+1;
                 token[end] = '\0';
                 break;
             }      
@@ -876,7 +878,9 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
         var_indices[j].char_index += -(strlen(token) + offset-1) + value_len;
     }
 
-    
+
+
+
     return 0;
 }
 int assign_vars(char** tokens, int length, int i)
@@ -1144,12 +1148,13 @@ int execute_external(char** tokens, int token_num)
 
         // This for loops iterates over the a set of arguments seperated by pipes.
         // If the set of arguments has redirection files specified, they are not iterated over.
-        for (int j = new_start; j < ex.pipe_indices[i]-ex.section[i]->redirect_count; j++)
+
+        for (int j = ex.execute_start; j < ex.pipe_indices[i]-ex.section[i]->redirect_count; j++)
             args[argc++] = tokens[j];
         args[argc] = NULL;
         
         // The next iterations starts from  the end of the previous.
-        new_start = ex.pipe_indices[i];
+        ex.execute_start = ex.pipe_indices[i];
         
         if (i < ex.pipe_count)
             pipe(current_fd);

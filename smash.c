@@ -70,47 +70,63 @@ int main(void)
             Function returns the index of the first instance of the character it searches for, and -1 on failure.
             No character found: -1 + 1 == 0 == false
             Character is in position 0: 0+1 == 1 == true*/
+            
+            int assign_count = 0;
+            int i,j;
+            for (i = 0; i < token_num && contains_char(tokens[i],'=')+1; i++);
+            
+             assign_count = ex.execute_start = i;
 
+                
+
+            // assign_count is the number of variable_assignment tokens following one another starting from the beginning
+            
             interpret_vars_assign = contains_char(tokens[0],'=')+1;
             
             //Loop through all tokens, performing variable expansion and assignment per token. 
-            int i,j;
+
             for (i = 0, j = 0; i < token_num; i++)
             {
                 //Perform variable expansion, if applicable.
-                if ((j < var_indices_len) && (i == var_indices[j].token_index) &&
-                (error = expand_vars(tokens, var_indices, var_indices_len, j++))) 
-                    goto end;         
+
+                if ((j < var_indices_len) && (i == var_indices[j].token_index))
+                {
+                    do 
+                    {
+                        if (error = expand_vars(tokens, var_indices, var_indices_len, j)) 
+                            goto end;         
+
+                    } while (j < var_indices_len && var_indices[j].token_index == var_indices[++j].token_index);
+                    //Expand all variables of token i
+                }
 
                 //Function 'assign_vars' looks for any '=' within the token and assigns variables accordingly.
-                if ((interpret_vars_assign) && (error = assign_vars(tokens, token_num, i)))
+                if ((i < assign_count) && (error = assign_vars(tokens, token_num, i)))
                     goto end;             
             }
 
-            if (!interpret_vars_assign)
+            if (assign_count < token_num)
             {
-
                 // There are 2 systems in place for handling redirects.
                 // One is for internal commands, the other is for external commands.
 
 
                 //If there are pipes then it its surely not an internal command.
                 if (ex.pipe_count)
-                    error = execute_external(tokens, token_num);
+                    error = execute_external(tokens, token_num-assign_count);
 
                 //Check if the first command is an internal command or not
                 else
                 {
                     int match = 1;
-                    int j;
                     /* This for loops breaks if match equals 0
                     and the value of j points to the command it matched to in 'internal_commands' */
 
-                    for (j = 0; j < INTERNAL_COMMANDS_LEN && (match = strcmp(tokens[0],internal_commands[j])); j++);
+                    for (j = 0; j < INTERNAL_COMMANDS_LEN && (match = strcmp(tokens[assign_count],internal_commands[j])); j++);
 
                     //It is an external command.
                     if (match)
-                        error = execute_external(tokens, token_num);
+                        error = execute_external(tokens, token_num-assign_count);
 
                     //It is an internal command.
                     else
@@ -125,7 +141,7 @@ int main(void)
                         }
 
                         //Configure redirects
-                        for (int i = 0; i < in.redirect_count; i++) 
+                        for (i = 0; i < in.redirect_count; i++) 
                         {
                             if (error = handle_redirect(tokens, in.redirect_indices[i], i))
                                 goto end;
@@ -141,11 +157,13 @@ int main(void)
                         so they can be properly freed afterwards using token_num */
 
                         if (!(error = hook_streams()))
-                            error = execute_internal(tokens+1, (in.redirect_start? in.redirect_start:token_num)-1, j);
+                            error = execute_internal(tokens+assign_count+1, (in.redirect_start? in.redirect_start:token_num)-assign_count-1, j);
 
                     } 
                 }
             }
+            
+            
                 
 
             end:
