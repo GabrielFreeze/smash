@@ -64,24 +64,27 @@ int main(void)
             if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len)))
                 goto end;
             
-            /*If the first argument contains an '=', then it means the user is doing variable assignment
-            ...and the tokens should not be interpreted as [cmd arg0 arg1 ...], but just as a series of variable assignments.
-            
-            Function returns the index of the first instance of the character it searches for, and -1 on failure.
+            /*
+            contains_char() returns the index of the first instance of the character it searches for, and -1 on failure.
             No character found: -1 + 1 == 0 == false
             Character is in position 0: 0+1 == 1 == true*/
             
             int assign_count = 0;
-            int i,j;
-            for (i = 0; i < token_num && contains_char(tokens[i],'=')+1; i++);
-            
-             assign_count = ex.execute_start = i;
+            int i,j,k;
+            int assign_indices[BUFSIZE];
 
+            for (i = 0; i < token_num && (k = contains_char(tokens[i],'='))+1; i++)
+                assign_indices[i%BUFSIZE] = k;
+            
+            if (i >= BUFSIZE)
+            {
+                error = BUFFER_OVERFLOW_ERROR;
+                goto end;
+            }
                 
-
             // assign_count is the number of variable_assignment tokens following one another starting from the beginning
-            
-            interpret_vars_assign = contains_char(tokens[0],'=')+1;
+            assign_count = ex.execute_start = i;
+
             
             //Loop through all tokens, performing variable expansion and assignment per token. 
 
@@ -96,24 +99,24 @@ int main(void)
                         if (error = expand_vars(tokens, var_indices, var_indices_len, j)) 
                             goto end;         
 
-                    } while (j < var_indices_len && var_indices[j].token_index == var_indices[++j].token_index);
+                    } while (j < var_indices_len-1 && var_indices[j].token_index == var_indices[++j].token_index);
                     //Expand all variables of token i
                 }
 
                 //Function 'assign_vars' looks for any '=' within the token and assigns variables accordingly.
-                if ((i < assign_count) && (error = assign_vars(tokens, token_num, i)))
+                if ((i < assign_count) && (error = assign_vars(tokens, token_num, i, assign_indices[i])))
                     goto end;             
             }
 
             if (assign_count < token_num)
             {
-                // There are 2 systems in place for handling redirects.
+                // There are 2 systems in place for handling redirects
                 // One is for internal commands, the other is for external commands.
 
 
                 //If there are pipes then it its surely not an internal command.
                 if (ex.pipe_count)
-                    error = execute_external(tokens, token_num-assign_count);
+                    error = execute_external(tokens);
 
                 //Check if the first command is an internal command or not
                 else
@@ -126,7 +129,7 @@ int main(void)
 
                     //It is an external command.
                     if (match)
-                        error = execute_external(tokens, token_num-assign_count);
+                        error = execute_external(tokens);
 
                     //It is an internal command.
                     else
@@ -187,6 +190,5 @@ int main(void)
 
     free_vars(); //Free all shell variables
     free_stack(); //Free all items in the directory stack
-
     return exit_value;
 }

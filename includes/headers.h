@@ -97,7 +97,7 @@ typedef struct token_section_
     int output;
     bool cat;
     int redirect_count;
-} token_section[BUFSIZE];
+} token_section;
 
 typedef struct redirect_ext_
 {
@@ -174,11 +174,11 @@ bool is_var(char* token);
 int init_vars(void);
 bool vars_valid(char* token, int j);
 int expand_vars(char** tokens, tokenchar_pair* var_indices, int var_indices_len, int m);
-int assign_vars(char** tokens, int length, int i);
+int assign_vars(char** tokens, int length, int i, int k);
 
 // Commands.
 int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j);
-int execute_external(char** tokens, int token_num);
+int execute_external(char** tokens);
 
 //Redirects for internal commands.
 int handle_redirect(char* tokens[TOKEN_SIZE], int redirect_state, int j);

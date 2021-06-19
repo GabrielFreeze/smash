@@ -89,7 +89,7 @@ int node_insert(char* key, char* value, bool env)
 
     new_node->next = head;
     head = new_node;
-
+    head->prev = NULL;
     if (env && setenv(key,value,true))
         return ENV_VARIABLE_ASSIGNMENT_ERROR;
     
@@ -303,9 +303,9 @@ int tokens_init(char* string)
                 if (++ex.pipe_count == BUFSIZE)
                     return 0;
                 
-                ex.section[ex.pipe_count]->output = 0;
-                ex.section[ex.pipe_count]->input = 0;
-                ex.section[ex.pipe_count]->redirect_count = 0;
+                ex.section[ex.pipe_count].output = 0;
+                ex.section[ex.pipe_count].input = 0;
+                ex.section[ex.pipe_count].redirect_count = 0;
 
 
             
@@ -353,19 +353,19 @@ int tokens_init(char* string)
                 
                 
                 in.redirect_indices[in.redirect_count-1] = type;
-                ex.section[ex.pipe_count]->redirect_count ++;
+                ex.section[ex.pipe_count].redirect_count ++;
                 
                 if (type == INPUT)
-                    ex.section[ex.pipe_count]->input = ex.redirect_end;
+                    ex.section[ex.pipe_count].input = ex.redirect_end;
                 if (type == OUTPUT)
                 {
-                    ex.section[ex.pipe_count]->output = ex.redirect_end;
-                    ex.section[ex.pipe_count]->cat = false;
+                    ex.section[ex.pipe_count].output = ex.redirect_end;
+                    ex.section[ex.pipe_count].cat = false;
                 }
                 if (type == OUTPUT_CAT)
                 {
-                    ex.section[ex.pipe_count]->output = ex.redirect_end;
-                    ex.section[ex.pipe_count]->cat = true;
+                    ex.section[ex.pipe_count].output = ex.redirect_end;
+                    ex.section[ex.pipe_count].cat = true;
 
                 }
             }
@@ -659,9 +659,9 @@ void reset_streams()
 }
 void reset_ex()
 {
-    ex.section[0]->input = 0;
-    ex.section[0]->output = 0;
-    ex.section[0]->redirect_count = 0;
+    ex.section[0].input = 0;
+    ex.section[0].output = 0;
+    ex.section[0].redirect_count = 0;
     ex.pipe_count = 0;
     ex.pipe_start = -1;
     ex.pipe_end = -1;
@@ -682,11 +682,10 @@ void free_vars()
     
     for (current_node = head; current_node; current_node = current_node->next)
     {
-        if (current_node->prev)
+        if (current_node->prev) 
             node_delete(current_node->prev);
     }
 
-    
     node_delete(tail);
 }
 void free_stack()
@@ -698,6 +697,7 @@ void free_stack()
 
     free(stack[0]);
 }
+
 //Shell variables.
 int init_vars(void)
 {
@@ -883,7 +883,7 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
 
     return 0;
 }
-int assign_vars(char** tokens, int length, int i)
+int assign_vars(char** tokens, int length, int i, int k)
 {
 
     node* current_node;
@@ -894,16 +894,10 @@ int assign_vars(char** tokens, int length, int i)
 
     strcpy(current_token,tokens[i]);
 
-    for (char* string = strtok(current_token, "="); string && (strlen(string) != current_token_len); string = strtok(NULL, "="))
-    {
-        if (j == 2)
-            return VARIABLE_ASSIGNMENT_ERROR;
-        strcpy(key_value[j++],string);
-    }
+    current_token[k] = 0;
+    strcpy(key_value[0],current_token);
+    strcpy(key_value[1], current_token+k+1);
 
-    //If j != 2 then that means the token didn't have exactly one '='
-    if (j != 2)
-        return VARIABLE_ASSIGNMENT_ERROR;
     
     for (int i = 0; i < strlen(key_value[0]); i++)
     {
@@ -1126,7 +1120,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             return BUFFER_OVERFLOW_ERROR;
     }
 }
-int execute_external(char** tokens, int token_num)
+int execute_external(char** tokens)
 {
     int fd[ex.pipe_count*2];
     int* current_fd = fd;
@@ -1149,7 +1143,7 @@ int execute_external(char** tokens, int token_num)
         // This for loops iterates over the a set of arguments seperated by pipes.
         // If the set of arguments has redirection files specified, they are not iterated over.
 
-        for (int j = ex.execute_start; j < ex.pipe_indices[i]-ex.section[i]->redirect_count; j++)
+        for (int j = ex.execute_start; j < ex.pipe_indices[i]-ex.section[i].redirect_count; j++)
             args[argc++] = tokens[j];
         args[argc] = NULL;
         
@@ -1173,10 +1167,10 @@ int execute_external(char** tokens, int token_num)
                 
             }
             //Hook output if the user specified a file
-            if (output_file = ex.section[i]->output)
+            if (output_file = ex.section[i].output)
             {
                 //Opens file in rw or a+
-                if ((fd_output = open(tokens[output_file], ex.section[i]->cat? (O_CREAT | O_APPEND | O_RDWR):(O_CREAT | O_RDWR | O_TRUNC), S_IRWXU)) < 0)
+                if ((fd_output = open(tokens[output_file], ex.section[i].cat? (O_CREAT | O_APPEND | O_RDWR):(O_CREAT | O_RDWR | O_TRUNC), S_IRWXU)) < 0)
                 {
                     perror("File Error");
                     exit(1);
@@ -1194,7 +1188,7 @@ int execute_external(char** tokens, int token_num)
                 close(previous_fd[0]);
             }
             // Hooks input if the user specified a file
-            if (input_file = ex.section[i]->input)
+            if (input_file = ex.section[i].input)
             {
                 if ((fd_input = open(tokens[input_file], O_RDWR)) < 0)
                 {
