@@ -8,18 +8,43 @@
 #include "includes/headers.h"
 #include "includes/linenoise-master/linenoise.h"
 
+const char* const errors[100] = {
+                    MEMORY_ERROR_MSG,
+                    BUFFER_ERROR_MSG,
+                    PARSE_ERROR_MSG,
+                    VARIABLE_DECLARATION_MSG,
+                    VARIABLE_EXPANSION_MSG,
+                    VARIABLE_ASSIGNMENT_MSG,
+                    VARIABLE_NAME_MSG,
+                    NODE_NOT_FOUND_MSG,
+                    NODE_ASSIGNMENT_MSG,
+                    STACK_FULL_MSG,
+                    STACK_EMPTY_MSG,
+                    TOKENS_MEMORY_MSG,
+                    VARINDICES_MEMORY_MSG,
+                    INVALID_ARGS_MSG,
+                    ENV_VARIABLE_NOT_FOUND_MSG,
+                    ENV_VARIABLE_ASSIGNMENT_MSG,
+                    CWD_NOT_FOUND_MSG,
+                    NULL_GIVEN_MSG,
+                    NOT_A_DIR_MSG
+                    };
 
+char* const prompt_default = {"init> "};
+const char* const exit_keyword = {"exit"};
+const char* const metacharacters = {" |;<>\t"};
+const char* const quotes = {"\""};
+const char* const internal_commands[TOKEN_SIZE] = {"exit", "echo","cd",
+                                                   "showvar","export","unset",
+                                                   "showenv","pushd","popd",
+                                                   "dirs","source"};
 
 int main(void)
 {
 
-    init();
-
     char* input;
     redirect_ext ex;
     redirect_int in;
-    reset_in(&in);
-    reset_ex(&ex);
     int token_num;
     char** tokens = NULL;
 
@@ -28,12 +53,18 @@ int main(void)
     int var_indices_len;
     tokenchar_pair* var_indices = NULL;
 
-    bool interpret_vars_assign = false;
-
     char* prompt;
     
     setbuf(stdout, NULL);
     signal(SIGINT, SIGINT_handler);
+
+    reset_in(&in);
+    reset_ex(&ex);
+
+    top = -1;  //Will always point to the last element of stack. -1 if stack is empty.
+
+    stdin_fd = -1;
+    stdout_fd = -1;
 
     //Initialise all shell variables.
     if (exit_program = (error = init_vars()))
@@ -44,7 +75,6 @@ int main(void)
 
     while (!exit_program)
     {   
-
         //Get the input from a file, or else from the command prompt.
         if (fp)
         {
@@ -163,28 +193,24 @@ int main(void)
                         so they can be properly freed afterwards using token_num */
 
                         if (!(error = hook_streams(&in)))
-                            error = execute_internal(tokens+assign_count+1, (in.redirect_start? in.redirect_start:token_num)-assign_count-1, j);
+                            error = execute_internal(tokens+assign_count+1, (in.redirect_start? in.redirect_start:token_num)-assign_count-1, (cmdno) j);
 
                     } 
                 }
             }
             
             
-                
-
             end:
                 handle_error(); //Prints Error Message.
                 tokens_free(tokens,&token_num); //Frees array holding the tokens.
                 var_indices_free(var_indices,&var_indices_len); //Frees array holding variable positions.
-                reset_streams(); // Reverts to standard input/output streams
+                if (reset_streams()) perror("Redirect Error"); // Reverts to standard input/output streams
                 reset_ex(&ex); // Resets the 'ex' struct to default values
                 reset_in(&in); // Resets the 'in' struct to default values
 
                 //If the user decides to delete the PROMPT variable, the default value should display.
                 node* current_node;
                 prompt = (!(current_node = node_search("PROMPT")))? prompt_default:current_node->value;
-
-
 
                 
         }

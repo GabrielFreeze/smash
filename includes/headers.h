@@ -4,7 +4,7 @@
 #define VALUE_SIZE 2000
 #define BUFSIZE 256
 
-enum char_types{NONE = -1,
+typedef enum char_type_{NONE = -1,
                 NORMAL,
                 META,
                 ESCAPE,
@@ -14,9 +14,10 @@ enum char_types{NONE = -1,
                 OUTPUT,
                 OUTPUT_CAT,
                 INPUT,
-                PIPE};
+                PIPE} charno;
 
-typedef enum error_types{MEMORY_ERROR = 1,
+typedef enum error_types{ NO_ERROR,
+                 MEMORY_ERROR,
                  BUFFER_OVERFLOW_ERROR,
                  PARSE_ERROR,
                  VARIABLE_DECLARATION_ERROR,
@@ -60,7 +61,8 @@ typedef enum error_types{MEMORY_ERROR = 1,
 #define NOT_A_DIR_MSG "Not a directory.\n"
 
 #define INTERNAL_COMMANDS_LEN 11
-enum cmds{EXIT_CMD,
+typedef enum cmds{
+          EXIT_CMD,
           ECHO_CMD,
           CD_CMD,
           SHOWVAR_CMD,
@@ -70,7 +72,7 @@ enum cmds{EXIT_CMD,
           PUSHD_CMD,
           POPD_CMD,
           DIRS_CMD,
-          SOURCE_CMD};
+          SOURCE_CMD} cmdno; //The different types of internal commands.
 
 #define STACK_SIZE 100
 
@@ -82,23 +84,19 @@ typedef struct node_
     bool env;
     struct node_ *next;
     struct node_ *prev;
-} node;
-
+} node; //A single item in the shell variable doubly linked list.
 typedef struct tokenchar_pair_struct
 {
     int token_index;
     int char_index;
-} tokenchar_pair;
-
-
+} tokenchar_pair; //Used for identifying variable expansion characters.
 typedef struct token_section_
 {
     int input;
     int output;
     bool cat;
     int redirect_count;
-} token_section;
-
+} token_section; // Used for identifying the redirects of a specific token chunk.
 typedef struct redirect_ext_
 {
     token_section section[BUFSIZE]; 
@@ -108,11 +106,10 @@ typedef struct redirect_ext_
     int pipe_indices[BUFSIZE];
     int redirect_end;
     int execute_start;
-} redirect_ext;
-
+} redirect_ext; // Used for executing external commands.
 typedef struct redirect_int_
 {
-    int redirect_indices[BUFSIZE]; 
+    charno redirect_indices[BUFSIZE]; 
     int redirect_count; 
 
     char input_filename[TOKEN_SIZE]; 
@@ -120,43 +117,42 @@ typedef struct redirect_int_
     char output_cat_filename[TOKEN_SIZE];
     
     int redirect_start;
-} redirect_int;
+} redirect_int; // Used for executing internal commands.
 
 
+volatile sig_atomic_t child_pids[BUFSIZE]; // Holds all child pids
+volatile sig_atomic_t child_count; //The length of child_pids. Initally set to 0.
 
+extern const char* const errors[100];
+extern char* const prompt_default;
+extern const char* const exit_keyword;
+extern const char* const metacharacters;
+extern const char* const quotes;
+extern const char* const internal_commands[TOKEN_SIZE];
 
-int child_pids[BUFSIZE];
-int child_count;
-char errors[ERRORS_LENGTH][100];
-char prompt_default [20];
-char metacharacters [20];
-char quotes[20];
-char internal_commands[INTERNAL_COMMANDS_LEN][TOKEN_SIZE];
+volatile err error;
+int exit_value; // The value the program should exit on
+bool exit_program; // Whether the program should exit or not
 
-err error;
-int exit_value;
-bool exit_program;
+FILE* fp; //For the source command
+node* head; //Head of the shell variable doubly linked list
+node* tail; //Tail of the shell variable doubly linked list
+int vars_len; //Length of the shell variable doubly linked list. Initially set to 0.
 
-FILE* fp;
-node* head;
-node* tail;
-int vars_len;
-
-char* stack[STACK_SIZE];     
+char* stack[STACK_SIZE];// The underlying data structure for the directory stack
 int top;  //Will always point to the last element of stack. -1 if stack is empty.
 
-int stdin_fd;
-int stdout_fd;
+int stdin_fd; // Used to redirect input while executing an internal command
+int stdout_fd;// Used to redirect output while executing an internal command
 
 extern char **environ;
 
-void init();
 //Tokenisation
-int tokens_init(char* string, redirect_int* in, redirect_ext* ex);
-int char_type(char* string, int j);
-char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_index, redirect_int* in, redirect_ext* ex);
-bool is_deref(char* string, int upper);
-bool is_meta(char* string, int j);
+int tokens_init(const char* string, redirect_int* in, redirect_ext* ex);
+charno char_type(const char* string, int j);
+char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, int* var_index, redirect_int* in, redirect_ext* ex);
+bool is_deref(const char* string, int upper);
+bool is_meta(const char* string, int j);
 
 // Error handling and variable resetting.
 void handle_error();
@@ -164,44 +160,44 @@ void tokens_free(char** tokens, int* length);
 void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len);
 void reset_in(redirect_int* in);
 void reset_ex(redirect_ext* ex);
-void reset_streams();
+err reset_streams();
 void free_vars();
 void free_stack();
 
 //Shell variables.
-bool is_var(char* token);
-int init_vars(void);
-bool vars_valid(char* token, int j);
-int expand_vars(char** tokens, tokenchar_pair* var_indices, int var_indices_len, int m);
-int assign_vars(char** tokens, int length, int i, int k);
+err init_vars(void);
+bool vars_valid(const char* token, int j);
+err assign_vars(char** tokens, int length, int i, int k);
+err expand_vars(char** tokens, tokenchar_pair* var_indices, int var_indices_len, int m);
 
 // Commands.
-int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j);
-int execute_external(char** tokens, redirect_ext* ex);
+err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j);
+err execute_external(char** tokens, redirect_ext* ex);
 
 //Redirects for internal commands.
-int handle_redirect(char* tokens[TOKEN_SIZE], int redirect_state, int j, redirect_int* in);
-int hook_streams(redirect_int* in);
+err handle_redirect(char* tokens[TOKEN_SIZE], charno redirect_state, int j, redirect_int* in);
+err hook_streams(const redirect_int* in);
 
 //Miscellaneous
 char* get_input_from_file(FILE* fp);
-int contains_word(char* input, char* key);
-int contains_char(char* string, char a);
-int str_to_int(int* value, char* string);
+bool contains_word(const char* input, const char* key);
+int contains_char(const char* string, char a);
+err str_to_int(int* value, const char* string);
 void SIGINT_handler(int signum);
 
 //Linked List
-int node_insert(char* key, char* value, bool env);
-int node_delete(node* current_node);
-node* node_search(char* key);
-int node_edit(node* current_node, char* value);
-int node_export(node* current_node);
+err node_insert(const char* const key, const char* const value, bool env);
+err node_delete(node* current_node);
+node* node_search(const char* key);
+err node_edit(node* current_node, const char* value);
+err node_export(node* current_node);
 void nodes_print();
 
 //Stack
-int print_stack();
-int peek(char** value);
-int pop(char** value);
-int push(char* value);
+err print_stack();
+err peek(char** value); 
+err pop(char** value);
+err push(const char* value);
 bool is_full();
-int change_directory(char* value);
+err change_topmost(const char* value);
+err change_directory(const char* cwd);

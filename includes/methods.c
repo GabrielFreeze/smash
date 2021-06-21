@@ -12,55 +12,9 @@
 #include <fcntl.h>
 #include "headers.h"
 
-//Initialise global variables
-void init() 
-{
-    strcpy(errors[0], MEMORY_ERROR_MSG);
-    strcpy(errors[1], BUFFER_ERROR_MSG);
-    strcpy(errors[2], PARSE_ERROR_MSG);
-    strcpy(errors[3], VARIABLE_DECLARATION_MSG);
-    strcpy(errors[4], VARIABLE_EXPANSION_MSG);
-    strcpy(errors[5], VARIABLE_ASSIGNMENT_MSG);
-    strcpy(errors[6], VARIABLE_NAME_MSG);
-    strcpy(errors[7], NODE_NOT_FOUND_MSG);
-    strcpy(errors[8], NODE_ASSIGNMENT_MSG);
-    strcpy(errors[9], STACK_FULL_MSG);
-    strcpy(errors[10], STACK_EMPTY_MSG);
-    strcpy(errors[11], TOKENS_MEMORY_MSG);
-    strcpy(errors[12], VARINDICES_MEMORY_MSG);
-    strcpy(errors[13], INVALID_ARGS_MSG);
-    strcpy(errors[14], ENV_VARIABLE_NOT_FOUND_MSG);
-    strcpy(errors[15], ENV_VARIABLE_ASSIGNMENT_MSG);
-    strcpy(errors[16], CWD_NOT_FOUND_MSG);
-    strcpy(errors[17], NULL_GIVEN_MSG);
-    strcpy(errors[18], NOT_A_DIR_MSG);
-
-
-    strcpy(prompt_default, "init> ");
-    strcpy(metacharacters, " |;<>\t");
-    strcpy(quotes, "\"");
-
-    strcpy(internal_commands[0], "exit");    
-    strcpy(internal_commands[1], "echo");
-    strcpy(internal_commands[2], "cd");    
-    strcpy(internal_commands[3], "showvar");    
-    strcpy(internal_commands[4], "export");    
-    strcpy(internal_commands[5], "unset");    
-    strcpy(internal_commands[6], "showenv");    
-    strcpy(internal_commands[7], "pushd");    
-    strcpy(internal_commands[8], "popd");    
-    strcpy(internal_commands[9], "dirs");    
-    strcpy(internal_commands[10], "source");      
-
-    top = -1;  //Will always point to the last element of stack. -1 if stack is empty.
-
-    stdin_fd = -1;
-    stdout_fd = -1;
-
-}
 
 // Linked List
-int node_insert(char* key, char* value, bool env)
+err node_insert(const char* const key, const char* const value, bool env)
 {
     node* new_node;
     node* current_node;
@@ -95,7 +49,7 @@ int node_insert(char* key, char* value, bool env)
     return 0;
 
 }
-node* node_search(char* key)
+node* node_search(const char* key)
 {
     node* current_node;
 
@@ -107,7 +61,7 @@ node* node_search(char* key)
 
     return current_node;
 }
-int node_delete(node* current_node)
+err node_delete(node* current_node)
 {
     if (!current_node)
         return NODE_NOT_FOUND_ERROR;
@@ -137,7 +91,7 @@ int node_delete(node* current_node)
     return 0;
 
 }
-int node_edit(node* current_node, char* value)
+err node_edit(node* current_node, const char* value)
 {
     if (!current_node)
         return NODE_NOT_FOUND_ERROR;
@@ -160,7 +114,7 @@ void nodes_print(){
     for (node* current_node = head; current_node; current_node = current_node->next)
         printf("%s=%s\n",current_node->key, current_node->value);  
 }
-int node_export(node* current_node)
+err node_export(node* current_node)
 {
     if (!current_node)
         return NODE_NOT_FOUND_ERROR;
@@ -178,7 +132,7 @@ bool is_full()
 {
     return top+1 == STACK_SIZE;
 }
-int push(char* value)
+err push(const char* value)
 {
     if (is_full())
         return STACK_FULL_ERROR;
@@ -193,7 +147,7 @@ int push(char* value)
 
     return 0;
 }   
-int pop(char** value)
+err pop(char** value)
 {
     //peek already checks if the stack only has one value or not. peek ⊆ pop    
     if (error = peek(value))
@@ -207,7 +161,7 @@ int pop(char** value)
 
     return 0;
 }
-int peek(char** value)
+err peek(char** value)
 {
     if (!top)
         return STACK_EMPTY_ERROR;
@@ -220,7 +174,7 @@ int peek(char** value)
     *value = value2;
     return 0;
 }
-int print_stack()
+err print_stack()
 {
     for (int i = top; i >= 0; i--)
         printf("%s  ",stack[i]);
@@ -228,7 +182,7 @@ int print_stack()
 
     return 0;
 }
-int change_topmost(char* value)
+err change_topmost(const char* value)
 {   
     stack[top][0] = 0;
     if (!(stack[top] = (char*) realloc(stack[top], strlen(value)+1)))
@@ -237,7 +191,7 @@ int change_topmost(char* value)
     strcpy(stack[top],value);
     return 0;
 }
-int change_directory(char* cwd)
+err change_directory(const char* cwd)
 {
     if (!cwd)
         return CWD_NOT_FOUND_ERROR;
@@ -269,11 +223,11 @@ int change_directory(char* cwd)
 }
 
 // Tokenisation.
-int tokens_init(char* string, redirect_int* in, redirect_ext* ex)
+int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
 {
     int count = 0;
     bool in_quotes = false;
-    int type, prev_type = NONE;
+    charno type, prev_type = NONE;
     bool is_output_cat = false;
     bool special_before = false;
 
@@ -402,7 +356,7 @@ int tokens_init(char* string, redirect_int* in, redirect_ext* ex)
 
     
 }
-int char_type(char* string, int j)
+charno char_type(const char* string, int j)
 {
     if (j < 0){
         return NONE;
@@ -462,7 +416,7 @@ int char_type(char* string, int j)
     return is_meta(string,j)? META:NORMAL;
 
 }
-bool is_meta(char* string, int j)
+bool is_meta(const char* string, int j)
 {
 
     for (int i = 0; i < strlen(metacharacters); i++)
@@ -473,7 +427,7 @@ bool is_meta(char* string, int j)
 
     return 0;
 }
-bool is_deref(char* string, int upper)
+bool is_deref(const char* string, int upper)
 {
     // Counts the number of escape character behind a character.
     // This is so to determine whether the (\) character before it is an Escape Character,
@@ -483,13 +437,12 @@ bool is_deref(char* string, int upper)
 
     int lower = upper-1;
 
-    while (lower >= 0 && string[lower] == '\\')
-        lower --;
+    while (lower+1 && string[lower--] == '\\');
 
-    return !((upper-lower) % 2);
+    return (upper-lower)%2;
 
 }
-char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* var_length, redirect_int* in, redirect_ext* ex)
+char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, int* var_length, redirect_int* in, redirect_ext* ex)
 {  
     *length = 0;
     *var_indices = NULL;
@@ -504,7 +457,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
 
     bool in_quotes = false;
     bool meta = false;
-    int type, prev_type = NONE;
+    charno type, prev_type = NONE;
 
     if (!(max_length = tokens_init(input, in, ex)))
     {
@@ -512,8 +465,7 @@ char** tokens_get(char* input, int* length, tokenchar_pair** var_indices, int* v
         return NULL;
     }
     
-    //Using calloc and an extra 1 so I can pass these tokens as a null terminated array of pointers to execvp.
-    if (!(tokens = (char**) calloc(max_length+1, sizeof(char*))))
+    if (!(tokens = (char**) malloc(max_length * sizeof(char*))))
     {
         error = TOKENS_MEMORY_ERROR;
         return tokens;
@@ -619,7 +571,7 @@ void tokens_free(char** tokens, int* length)
 {
     if (tokens)
     {
-        for (int i = 0; i < (*length)+1; i++)
+        for (int i = 0; i < *length; i++)
             free(tokens[i]);
 
         if (*length > 0)
@@ -641,18 +593,32 @@ void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
     }
 
 }
-void reset_streams()
+err reset_streams()
 {
+    error = 0;
     if (stdin_fd > 0)
     {
-        dup2(stdin_fd, STDIN_FILENO);
-        close(stdin_fd);
+        if (dup2(stdin_fd, STDIN_FILENO) < 0)
+            error = SYSTEM_CALL_ERROR;
+        
+        if (close(stdin_fd))
+            error = SYSTEM_CALL_ERROR;
+        
+        stdin_fd = -1;
     }
     if (stdout_fd > 0)
     {
-        dup2(stdout_fd, STDOUT_FILENO);
-        close(stdout_fd);
+        if (dup2(stdout_fd, STDOUT_FILENO) < 0)
+            error = SYSTEM_CALL_ERROR;
+        
+        if (close(stdout_fd))
+            error = SYSTEM_CALL_ERROR;
+        
+        stdout_fd = -1;
     }
+
+    return error;
+    
 }
 void reset_ex(redirect_ext* ex)
 {
@@ -696,7 +662,7 @@ void free_stack()
 }
 
 //Shell variables.
-int init_vars(void)
+err init_vars(void)
 {
     // Set every enviroment variable as a shell variable, with the bool env set to true.
 
@@ -771,7 +737,7 @@ int init_vars(void)
     return 0;
 
 } 
-bool vars_valid(char* token, int j)
+bool vars_valid(const char* token, int j)
 {
     if (!j && token[j] >= '0'  && token[j] <= '9')
         return false;
@@ -784,7 +750,7 @@ bool vars_valid(char* token, int j)
 
     return false;        
 }
-int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_indices_len, int m)
+err expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_indices_len, int m)
 {
     int equal = 0;
     char token[TOKEN_SIZE];
@@ -880,7 +846,7 @@ int expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
 
     return 0;
 }
-int assign_vars(char** tokens, int length, int i, int k)
+err assign_vars(char** tokens, int length, int i, int k)
 {
 
     node* current_node;
@@ -928,7 +894,7 @@ int assign_vars(char** tokens, int length, int i, int k)
 }
 
 // Commands.
-int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
+err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
 {
     //Note that the first element of args is NOT the name of the command, its the first argument
     switch (j)
@@ -955,7 +921,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
         {
             if (arg_num < 1)
                 return INVALID_ARGS_ERROR;
-            
+
             for(int i = 0; i < arg_num; i++)
                 printf("%s ",args[i]);
             printf("\n");
@@ -1117,7 +1083,7 @@ int execute_internal(char* args[TOKEN_SIZE], int arg_num, int j)
             return BUFFER_OVERFLOW_ERROR;
     }
 }
-int execute_external(char** tokens, redirect_ext* ex)
+err execute_external(char** tokens, redirect_ext* ex)
 {
     int fd[ex->pipe_count*2];
     int* current_fd = fd;
@@ -1130,7 +1096,8 @@ int execute_external(char** tokens, redirect_ext* ex)
     int status;
     int exitcode;
     char str[10];
-    
+    error = 0;
+
     for (int i = 0; i < ex->pipe_count+1; i++, previous_fd = current_fd, current_fd += 2)
     {
         int argc = 0;
@@ -1147,14 +1114,15 @@ int execute_external(char** tokens, redirect_ext* ex)
         // The next iterations starts from  the end of the previous.
         ex->execute_start = ex->pipe_indices[i];
         
-        if (i < ex->pipe_count)
-            pipe(current_fd);
+        if (i < ex->pipe_count && pipe(current_fd))
+            return SYSTEM_CALL_ERROR;
          
         if ((pid = fork()) < 0)
             return SYSTEM_CALL_ERROR;
-        else if (!pid) // Child Process
+        
+        
+        if (!pid) // Child Process
         {
-            child_pids[child_count++] = getpid();
             // Hook output based on pipeline
             if (i < ex->pipe_count)
             {
@@ -1192,15 +1160,22 @@ int execute_external(char** tokens, redirect_ext* ex)
                     perror("File Error");
                     exit(1);
                 }
+
                 dup2(fd_input, STDIN_FILENO);
                 close(fd_input);
             }
             
             execvp(args[0], args);
             perror("Exec Error");
-            exit(1);
-        }
 
+            if (fp) 
+                fclose(fp);
+                
+            exit(EXIT_FAILURE);
+        }
+        else
+            child_pids[child_count++] = pid;
+        
         if (i) // The first parent process
         {
             close(previous_fd[0]);
@@ -1208,7 +1183,9 @@ int execute_external(char** tokens, redirect_ext* ex)
         }
 
     }
+    
     while (wait(&status) > 0); //Wait for all child processes to terminate.
+    child_count = 0; // All children have terminated
 
     if (WIFEXITED(status)) // Status of the last child process.
     { 
@@ -1221,23 +1198,24 @@ int execute_external(char** tokens, redirect_ext* ex)
             fprintf(stderr,"Could not save exitcode\n");
     } 
 
-    return 0;
+    return error;
 }
 
 //Redirects for internal commands.
-int handle_redirect(char** tokens, int state, int j, redirect_int* in)
+err handle_redirect(char** tokens, charno state, int j, redirect_int* in)
 {
     //What redirect is it?
     switch (state)
     {
         case INPUT: strcpy(in->input_filename, tokens[in->redirect_start+j]); break;
         case OUTPUT: strcpy(in->output_filename, tokens[in->redirect_start+j]); break;
-        case OUTPUT_CAT: strcpy(in->output_cat_filename, tokens[in->redirect_start+j]);
+        case OUTPUT_CAT: strcpy(in->output_cat_filename, tokens[in->redirect_start+j]); break;
+        default: return INVALID_ARGS_ERROR;
     }
     return 0;
 
 }
-int hook_streams(redirect_int* in)
+err hook_streams(const redirect_int* in)
 {
     int match = 1;
     int fd_input;
@@ -1255,14 +1233,10 @@ int hook_streams(redirect_int* in)
         else
         {
             stdin_fd = dup(STDIN_FILENO);
-            fprintf(stderr,"%d\n",fd_input);
-
             dup2(fd_input,STDIN_FILENO);
             close(fd_input);
         }
     } 
-    
-
     if (in->output_filename[0])
     {
         if ((fd_output = open(in->output_filename, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
@@ -1270,22 +1244,19 @@ int hook_streams(redirect_int* in)
         else
         {
             stdout_fd = dup(STDOUT_FILENO);
-
             dup2(fd_output,STDOUT_FILENO);
             close(fd_output);
         }
     }
-
     if (in->output_cat_filename[0])
     {
         if ((fd_output = open(in->output_cat_filename, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
             error = SYSTEM_CALL_ERROR;
         else
         {
-        stdout_fd = dup(STDOUT_FILENO);
-
-        dup2(fd_output,STDOUT_FILENO); 
-        close(fd_output);
+            stdout_fd = dup(STDOUT_FILENO);
+            dup2(fd_output,STDOUT_FILENO); 
+            close(fd_output);
         }
 
     }
@@ -1294,7 +1265,7 @@ int hook_streams(redirect_int* in)
 }
 
 //Miscellaneous.
-int contains_char(char* string, char a)
+int contains_char(const char* string, char a)
 {
     for (int i = 0; i < strlen(string); i++)
     {
@@ -1304,7 +1275,7 @@ int contains_char(char* string, char a)
 
     return -1;
 }
-int str_to_int(int* value, char* string)
+err str_to_int(int* value, const char* string)
 {
     char* end;
 
@@ -1319,10 +1290,10 @@ int str_to_int(int* value, char* string)
 }
 char* get_input_from_file(FILE* fp)
 {
-    char line [BUFSIZE];
+    char line[BUFSIZE];
     error = 0;
 
-    if (!(fgets(line,BUFSIZ,fp)))
+    if (!(fgets(line,BUFSIZE-1,fp)))
         return NULL;
 
     int length = strlen(line);
@@ -1334,13 +1305,12 @@ char* get_input_from_file(FILE* fp)
         return NULL;
     }
     
-    //Change the newline character with a null terminator
+    //Change the last character with a null terminator
 
     if (line[length-2] == '\r')
         line[length-2] = '\0';
     else
         line[length-1] = '\0';
-
 
     strcpy(input,line);
 
@@ -1348,14 +1318,14 @@ char* get_input_from_file(FILE* fp)
     return input;
 
 }
-int contains_word(char* input, char* key)
+bool contains_word(const char* input, const char* key)
 {
     int input_len = strlen(input);
     int key_len = strlen(key);
     int j = 0;
 
     if (input_len < key_len)
-        return 0;
+        return false;
 
     for (int i = 0; i <= input_len-key_len; i++)
     {
@@ -1365,18 +1335,19 @@ int contains_word(char* input, char* key)
                 break;
         }    
 
-        if (j < key_len) // Loop breaked
-            continue;
-        else //Loop finished
-            return 1;
+        if (j == key_len) // Loop finished and did not break
+            return true;
     }
 
-    return 0;
+    return false;
 
 
 }
 void SIGINT_handler(int signum)
 {
-    while (child_count--)
-        kill(child_pids[child_count], SIGTERM);
+    while (child_count)
+    {
+        if (kill(child_pids[--child_count], SIGTERM))
+            error = SYSTEM_CALL_ERROR;
+    }
 }
