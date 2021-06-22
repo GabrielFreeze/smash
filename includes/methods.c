@@ -228,6 +228,12 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
     bool is_output_cat = false;
     bool special_before = false;
 
+    bool encountered_equals = false;
+    bool consider_equals = true;
+
+    int assign_indices[BUFSIZE];
+    int assign_count = 0;
+
 
     for (int i = 0; i < strlen(string); i++)
     {
@@ -236,7 +242,8 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
         //Is the character in quotes?
         if (in_quotes && type != ESCAPE && type != VARIABLE && type != QUOTE)
             type = NORMAL;
-        
+
+
         if (type == NORMAL)
             special_before = false;
         
@@ -278,7 +285,6 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
             }
             
             //A:    Check if there are two (>) in succession.
-
             if (i != strlen(string)-1 && type == OUTPUT && char_type(string, i+1) == OUTPUT)
             {
                 type = OUTPUT_CAT;
@@ -325,18 +331,19 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
 
                 }
             }
+            
 
             if (type == QUOTE)
                 in_quotes ^= true;
             
-            //If: The character is a meta character, and its previous characters are either normal or quote
-            //Then: This means a token just ended, so increment token_count
 
             if ((type == QUOTE && prev_type == QUOTE) ||
             (prev_type == VARIABLE && type != NORMAL && type != QUOTE))
                 return 0;
             
-            //Identfies whether a token has ended
+
+            //If: The character is a meta character, and its previous characters are either normal or quote
+            //Then: This means a token just ended, so increment token_count
             if (!in_quotes && is_meta(string,i) && (prev_type == NORMAL || prev_type == QUOTE))
                 ++count;
         }
@@ -345,7 +352,7 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
 
     //Since the only way a token is considered is if a string of characters is terminated with a meta character...
     //Check if the last character was META or not. If it wasn't meta, that means there is one final token that we need to consider
-    if (type == NORMAL || type == QUOTE) 
+    if (type == NORMAL || type == QUOTE || type == EQUAL) 
         count++;
     
     if (type == ESCAPE || type == VARIABLE)
@@ -386,8 +393,7 @@ charno char_type(const char* string, int j)
             return NORMAL;
         else
             return ESCAPE;
-    }
-    
+    }   
     if (string[j] == '$')
     {
         if (is_deref(string,j))
@@ -395,7 +401,6 @@ charno char_type(const char* string, int j)
         else
             return VARIABLE;
     }
-
     if (string[j] == '>')
     {
         if (is_deref(string,j))
@@ -403,7 +408,6 @@ charno char_type(const char* string, int j)
         else
             return OUTPUT;
     }
-
     if (string[j] == '<')
     {
         if (is_deref(string,j))
@@ -411,13 +415,19 @@ charno char_type(const char* string, int j)
         else
             return INPUT;
     }
-
     if (string[j] == '|')
     {
         if (is_deref(string, j))
             return NORMAL;
         else
             return PIPE;
+    }
+    if (string[j] == '=')
+    {
+        if (is_deref(string, j))
+            return NORMAL;
+        else
+            return EQUAL;
     }
 
     return is_meta(string,j)? META:NORMAL;
@@ -454,7 +464,9 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
     *length = 0;
     *var_indices = NULL;
     *var_length = 0;
+    // *assign_count = 0;
     tokenchar_pair* var_indices2;
+    // int* assign_indices2;
 
     int index = 0;
     int j = 0;
@@ -464,8 +476,14 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
 
     bool in_quotes = false;
     bool meta = false;
+
+    bool consider_equals = true;
+    bool encountered_equals = false;
     charno type = BLANK;
     charno prev_type = BLANK;
+
+    // int assign_indices[BUFSIZE];
+    // int assign_count = 0;
 
     if (!(max_length = tokens_init(input, in, ex)))
     {
@@ -519,6 +537,23 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
             meta = false;
         }
 
+        // if (type == EQUAL)
+        // {
+        //     if (consider_equals && !encountered_equals && *assign_count == index)
+        //     {
+        //         assign_indices2[(*assign_count)++] = j;
+        //         encountered_equals = true;
+
+        //         if (*assign_count == BUFSIZE)
+        //         {
+        //             error = BUFFER_OVERFLOW_ERROR;
+        //             return NULL;
+        //         }
+        //     }
+        //     else
+        //         type == NORMAL;
+        // }
+
         //Just like the token_init function, if a metacharacter terminated a string, then this is the end of a token
         //So lets save it in into tokens.
         if (meta && (prev_type == NORMAL || prev_type == QUOTE))
@@ -536,8 +571,13 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
             //dynamic memory allocated to them. Length keeps track of the current token_length so 
             //only the tokens with dynamic memory are freed afterwards.
             *length = index; 
-
             j = 0;
+
+            // if (encountered_equals)
+            //     encountered_equals = false;
+            // else
+            //     consider_equals = false;
+
         }
 
         else if (meta || (type == ESCAPE))
@@ -561,7 +601,10 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
         *length = index;
     }
     
+    
     *var_indices = var_indices2;
+    // *assign_indices = assign_indices2;
+    // ex->execute_start = *assign_count;
 
     return tokens;
 
@@ -916,7 +959,6 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
     {
         case EXIT_CMD:
         {
-            int error;
             //Maximum arg size is 1
             if (arg_num > 1)
                 return INVALID_ARGS_ERROR;
@@ -1335,7 +1377,7 @@ err str_to_int(int* value, const char* string)
 char* get_input_from_file(FILE* fp)
 {
     char line[BUFSIZ];
-    error = 0;
+    error = NONE;
 
     if (!(fgets(line,BUFSIZ-1,fp)))
         return NULL;

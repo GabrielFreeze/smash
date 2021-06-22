@@ -112,7 +112,7 @@ int main(void)
             int j = 0;
             int k = 0;
 
-
+            
             for (i = 0; i < token_num && (k = contains_char(tokens[i],'='))+1; i++)
                 assign_indices[i%BUFSIZE] = k;
             
@@ -210,7 +210,7 @@ int main(void)
             end:
                 handle_error(); //Prints Error Message.
                 tokens_free(tokens,&token_num); //Frees array holding the tokens.
-                var_indices_free(var_indices,&var_indices_len); //Frees array holding variable positions.
+                var_indices_free(var_indices, &var_indices_len); //Frees array holding variable positions.
                 if (reset_streams()) perror("Redirect Error"); // Reverts to standard input/output streams
                 reset_ex(&ex); // Resets the 'ex' struct to default values
                 reset_in(&in); // Resets the 'in' struct to default values
@@ -218,7 +218,8 @@ int main(void)
                 //If the user decides to delete the PROMPT variable, the default value should display.
                 node* current_node;
                 prompt = (!(current_node = node_search("PROMPT")))? prompt_default:current_node->value;
-
+                
+                
                 
         }
         free(input);

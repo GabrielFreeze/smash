@@ -40,7 +40,7 @@ typedef enum error_types{ NONE,
 
 #define ERRORS_LENGTH 19
 #define MEMORY_ERROR_MSG "A problem occured while dynamically allocating memory\n"
-#define BUFFER_ERROR_MSG "Did a token exceed its maximum buffer size?\n"
+#define BUFFER_ERROR_MSG "Too much of something!\n"
 #define PARSE_ERROR_MSG "Error while parsing.\n"
 #define VARIABLE_DECLARATION_MSG "Do you have a variable expansion character in quotes or referencing illegal characters?\n"
 #define VARIABLE_EXPANSION_MSG "Variable does not exsist.\n"
@@ -148,7 +148,7 @@ extern char **environ;
 //Tokenisation
 int tokens_init(const char* string, redirect_int* in, redirect_ext* ex);
 charno char_type(const char* string, int j);
-char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, int* var_index, redirect_int* in, redirect_ext* ex);
+char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, int* var_length, redirect_int* in, redirect_ext* ex);
 bool is_deref(const char* string, int upper);
 bool is_meta(const char* string, int j);
 
