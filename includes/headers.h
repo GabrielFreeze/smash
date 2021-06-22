@@ -1,10 +1,9 @@
 #pragma once
 #define TOKEN_SIZE 2000
-#define KEY_SIZE 2000
-#define VALUE_SIZE 2000
+
 #define BUFSIZE 256
 
-typedef enum char_type_{NONE = -1,
+typedef enum char_type{BLANK = -1,
                 NORMAL,
                 META,
                 ESCAPE,
@@ -16,7 +15,7 @@ typedef enum char_type_{NONE = -1,
                 INPUT,
                 PIPE} charno;
 
-typedef enum error_types{ NO_ERROR,
+typedef enum error_types{ NONE,
                  MEMORY_ERROR,
                  BUFFER_OVERFLOW_ERROR,
                  PARSE_ERROR,
@@ -123,7 +122,7 @@ typedef struct redirect_int_
 volatile sig_atomic_t child_pids[BUFSIZE]; // Holds all child pids
 volatile sig_atomic_t child_count; //The length of child_pids. Initally set to 0.
 
-extern const char* const errors[100];
+extern const char* const error_msg[100];
 extern char* const prompt_default;
 extern const char* const exit_keyword;
 extern const char* const metacharacters;
@@ -137,7 +136,6 @@ bool exit_program; // Whether the program should exit or not
 FILE* fp; //For the source command
 node* head; //Head of the shell variable doubly linked list
 node* tail; //Tail of the shell variable doubly linked list
-int vars_len; //Length of the shell variable doubly linked list. Initially set to 0.
 
 char* stack[STACK_SIZE];// The underlying data structure for the directory stack
 int top;  //Will always point to the last element of stack. -1 if stack is empty.

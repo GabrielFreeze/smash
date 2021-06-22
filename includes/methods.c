@@ -32,7 +32,7 @@ err node_insert(const char* const key, const char* const value, bool env)
     strcpy(new_node->value, value);
     new_node->env = env;
 
-    if (!vars_len)
+    if (!tail)
         tail = new_node;
     else
         head->prev = new_node;
@@ -43,10 +43,8 @@ err node_insert(const char* const key, const char* const value, bool env)
     head->prev = NULL;
     if (env && setenv(key,value,true))
         return ENV_VARIABLE_ASSIGNMENT_ERROR;
-    
-    vars_len++;
-    
-    return 0;
+        
+    return NONE;
 
 }
 node* node_search(const char* key)
@@ -86,9 +84,8 @@ err node_delete(node* current_node)
         free(current_node->key);
 
     free(current_node);
-    vars_len--;
 
-    return 0;
+    return NONE;
 
 }
 err node_edit(node* current_node, const char* value)
@@ -108,7 +105,7 @@ err node_edit(node* current_node, const char* value)
     if (current_node->env && setenv(current_node->key,value,1))
         return ENV_VARIABLE_NOT_FOUND_ERROR;
 
-    return 0;
+    return NONE;
 }
 void nodes_print(){
     for (node* current_node = head; current_node; current_node = current_node->next)
@@ -124,7 +121,7 @@ err node_export(node* current_node)
     if (setenv(current_node->key,current_node->value,1))
         return ENV_VARIABLE_ASSIGNMENT_ERROR;
 
-    return 0;
+    return NONE;
 }
 
 // Directory Stack
@@ -145,7 +142,7 @@ err push(const char* value)
     if (error = change_directory(value))
         return error;
 
-    return 0;
+    return NONE;
 }   
 err pop(char** value)
 {
@@ -159,7 +156,7 @@ err pop(char** value)
     if (error = change_directory(stack[top]))
         return error;
 
-    return 0;
+    return NONE;
 }
 err peek(char** value)
 {
@@ -172,7 +169,7 @@ err peek(char** value)
 
     strcpy(value2,stack[top]);
     *value = value2;
-    return 0;
+    return NONE;
 }
 err print_stack()
 {
@@ -180,7 +177,7 @@ err print_stack()
         printf("%s  ",stack[i]);
     printf("\n");
 
-    return 0;
+    return NONE;
 }
 err change_topmost(const char* value)
 {   
@@ -189,7 +186,7 @@ err change_topmost(const char* value)
         return MEMORY_ERROR;
 
     strcpy(stack[top],value);
-    return 0;
+    return NONE;
 }
 err change_directory(const char* cwd)
 {
@@ -218,7 +215,7 @@ err change_directory(const char* cwd)
         return error;
     
     free(new_cwd);
-    return 0;
+    return NONE;
 
 }
 
@@ -227,19 +224,25 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
 {
     int count = 0;
     bool in_quotes = false;
-    charno type, prev_type = NONE;
+    charno type, prev_type = BLANK;
     bool is_output_cat = false;
     bool special_before = false;
 
+
     for (int i = 0; i < strlen(string); i++)
     {
-        type = char_type(string,i);
+        type = char_type(string,i); //Get the current type
 
+        //Is the character in quotes?
         if (in_quotes && type != ESCAPE && type != VARIABLE && type != QUOTE)
             type = NORMAL;
         
         if (type == NORMAL)
             special_before = false;
+        
+        // Since >> are two characters, the program already checks
+        // if they are 2 on the first character in (A) and handles that case correctly.
+        // The next character we can just ignore it because it was already handled.
 
         if (type == OUTPUT && is_output_cat)
             is_output_cat = false;
@@ -259,8 +262,6 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
                 ex->section[ex->pipe_count].input = 0;
                 ex->section[ex->pipe_count].redirect_count = 0;
 
-
-            
                 special_before = true;
                 ex->pipe_end =  (prev_type == META)? count:count+1;
 
@@ -271,11 +272,12 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
                 if (!i || !ex->pipe_start)
                     return 0;
                 
-                
                 ex->pipe_indices[ex->pipe_count-1] = ex->pipe_end;
                 ex->pipe_indices[ex->pipe_count] = 0;
 
             }
+            
+            //A:    Check if there are two (>) in succession.
 
             if (i != strlen(string)-1 && type == OUTPUT && char_type(string, i+1) == OUTPUT)
             {
@@ -294,16 +296,18 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
 
                 special_before = true;
 
+                //Update current redirect index
                 ex->redirect_end = (prev_type == META)? count:count+1;
 
-                
+                //Set the beginning of the redirects to the current redirect index if not already set
                 if (!in->redirect_start)
                     in->redirect_start = ex->redirect_end;
                 
+                //Is there a redirect character as the first token? Raise an error if so.
                 if (!i || !in->redirect_start)
                     return 0;
                 
-                
+                //Save the type of redirect character
                 in->redirect_indices[in->redirect_count-1] = type;
                 ex->section[ex->pipe_count].redirect_count ++;
                 
@@ -332,7 +336,7 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
             (prev_type == VARIABLE && type != NORMAL && type != QUOTE))
                 return 0;
             
-
+            //Identfies whether a token has ended
             if (!in_quotes && is_meta(string,i) && (prev_type == NORMAL || prev_type == QUOTE))
                 ++count;
         }
@@ -358,8 +362,11 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
 }
 charno char_type(const char* string, int j)
 {
+    /*Function basically determines the type of the character. It checks every possibility
+    and if there is a match it checks wether its derferenced or not by a preceeding slash*/
+
     if (j < 0){
-        return NONE;
+        return BLANK;
     }
         
     for (int i = 0; i < strlen(quotes); i++)
@@ -457,7 +464,8 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
 
     bool in_quotes = false;
     bool meta = false;
-    charno type, prev_type = NONE;
+    charno type = BLANK;
+    charno prev_type = BLANK;
 
     if (!(max_length = tokens_init(input, in, ex)))
     {
@@ -524,7 +532,7 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
             current_token[j++] = '\0';
             strncpy(tokens[index++], current_token, j);
 
-            //If the function returns due to an error mid-way, then that means not all tokens have
+            //If the function returns due to an error mid-way, then that means not all tokens had
             //dynamic memory allocated to them. Length keeps track of the current token_length so 
             //only the tokens with dynamic memory are freed afterwards.
             *length = index; 
@@ -539,7 +547,8 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
                 
     }
 
-    //If j is greater than 0 , that means there is still data in the current_token vector, which has not been added to tokens.
+    //If j is greater than 0,
+    //that means there is still data in the current_token vector, which has not been added to tokens.
     if (j > 0) 
     {
         if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
@@ -565,7 +574,7 @@ void handle_error()
         perror("Error");
     
     else if (error)
-        fprintf(stderr,"%s",errors[error-1]); 
+        fprintf(stderr,"%s",error_msg[error-1]); 
 }
 void tokens_free(char** tokens, int* length)
 {
@@ -595,7 +604,11 @@ void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
 }
 err reset_streams()
 {
-    error = 0;
+    error = NONE;
+
+    /*If statements basically check wether the program was redirecting to/from a file in the first place
+    and if so redirects back to standard input/output.*/
+
     if (stdin_fd > 0)
     {
         if (dup2(stdin_fd, STDIN_FILENO) < 0)
@@ -642,6 +655,8 @@ void reset_in(redirect_int* in)
 void free_vars()
 {
     node* current_node;
+    /*Loops through every shell variable and frees its previous one.
+    This means by the end you'll have just the tail left.*/
     
     for (current_node = head; current_node; current_node = current_node->next)
     {
@@ -668,8 +683,8 @@ err init_vars(void)
 
     for (char** env_var = environ; *env_var; env_var++) 
     {
-        char var[VALUE_SIZE];
-        strncpy(var,*env_var,VALUE_SIZE);
+        char var[TOKEN_SIZE];
+        strncpy(var,*env_var,TOKEN_SIZE);
 
         char* key = strtok(var, "=");
         if (error = node_insert(key, getenv(key), true))
@@ -713,8 +728,8 @@ err init_vars(void)
     //Any changes to PWD (env), should be mirrored to CWD (env), which is then mirrored to CWD (shell).
     // On initialisation, home points to the current working directory
 
-    char cwd[VALUE_SIZE];
-    strncpy(cwd,getenv("HOME"),VALUE_SIZE);
+    char cwd[TOKEN_SIZE];
+    strncpy(cwd,getenv("HOME"),TOKEN_SIZE);
 
     if (error = node_insert("CWD", cwd, true)) //Create shell variable CWD.
         return error;
@@ -734,7 +749,7 @@ err init_vars(void)
         return SYSTEM_CALL_ERROR;
     
 
-    return 0;
+    return NONE;
 
 } 
 bool vars_valid(const char* token, int j)
@@ -844,7 +859,7 @@ err expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
 
 
 
-    return 0;
+    return NONE;
 }
 err assign_vars(char** tokens, int length, int i, int k)
 {
@@ -888,7 +903,7 @@ err assign_vars(char** tokens, int length, int i, int k)
             return ENV_VARIABLE_NOT_FOUND_ERROR;
     }
     
-    return 0;
+    return NONE;
 
 
 }
@@ -914,7 +929,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
                 return error;
             }
 
-            return 0;
+            return NONE;
                 
         }break;
         case ECHO_CMD:
@@ -925,7 +940,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
             for(int i = 0; i < arg_num; i++)
                 printf("%s ",args[i]);
             printf("\n");
-            return 0;
+            return NONE;
         }break;
         case CD_CMD:
         { 
@@ -940,7 +955,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
             
             if (error = change_directory(args[0]))
                 return error;
-            return 0;
+            return NONE;
         }break;
         case SHOWVAR_CMD:
         {   
@@ -958,8 +973,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
                     printf("%s=%s\n",current_node->key,current_node->value);
                 }      
             }
-
-            return 0;
+            return NONE;
         }break;
         case EXPORT_CMD:
         {
@@ -976,7 +990,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
                     return error;
             }
             
-            return 0;
+            return NONE;
         }break;
         case UNSET_CMD:
         {
@@ -995,7 +1009,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
                     return NODE_NOT_FOUND_ERROR;
             }
 
-            return 0;
+            return NONE;
         }break;
         case SHOWENV_CMD:
         {
@@ -1017,7 +1031,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
                 
             }
 
-            return 0;
+            return NONE;
         }break;
         case PUSHD_CMD:
         {
@@ -1038,7 +1052,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
             if (error = print_stack()) 
                 return error;
 
-            return 0;
+            return NONE;
         }break;
         case POPD_CMD:
         {
@@ -1056,7 +1070,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
 
             free(popped_value);
 
-            return 0;
+            return NONE;
         }break;
         case DIRS_CMD:
         {
@@ -1066,7 +1080,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
             if (error = print_stack())
                 return error;
             
-            return 0;
+            return NONE;
         }break;
         case SOURCE_CMD:
         {
@@ -1076,7 +1090,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
             if (!(fp = fopen(args[0],"r")))
                 return SYSTEM_CALL_ERROR;
 
-            return 0;
+            return NONE;
         }break;
       
         default:
@@ -1085,28 +1099,33 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
 }
 err execute_external(char** tokens, redirect_ext* ex)
 {
-    int fd[ex->pipe_count*2];
+    int fd[ex->pipe_count*2]; //Holds file descriptors for piping
     int* current_fd = fd;
     int* previous_fd;
+
     pid_t pid;
-    int output_file;
-    int fd_output;
-    int input_file;
-    int fd_input;
+
+    int output_file; //Index of a string in tokens where the file name for user specified ouput redirection can be found
+    int fd_output; //File descriptor used to open the filename specified by ouput_file
+
+    int input_file; //Index of a string in tokens where the file name for user specified input redirection can be found
+    int fd_input; //File descriptor used to open the filename specified by input_file
+
     int status;
     int exitcode;
+
     char str[10];
-    error = 0;
+    
+    error = NONE;
+
+    char* args[BUFSIZE]; // Used to hold the arguments to pass to execvp
+    int argc;
 
     for (int i = 0; i < ex->pipe_count+1; i++, previous_fd = current_fd, current_fd += 2)
     {
-        int argc = 0;
-        char* args[BUFSIZE];
-        pid_t pid;
-
         // This for loops iterates over the a set of arguments seperated by pipes.
         // If the set of arguments has redirection files specified, they are not iterated over.
-
+        argc = 0;
         for (int j = ex->execute_start; j < ex->pipe_indices[i]-ex->section[i].redirect_count; j++)
             args[argc++] = tokens[j];
         args[argc] = NULL;
@@ -1114,13 +1133,32 @@ err execute_external(char** tokens, redirect_ext* ex)
         // The next iterations starts from  the end of the previous.
         ex->execute_start = ex->pipe_indices[i];
         
+
         if (i < ex->pipe_count && pipe(current_fd))
+        {
+            while (child_count) //Powerful ray of sunshine to obliterate any zombies
+            {
+                if (kill(child_pids[--child_count], SIGTERM))
+                    error = SYSTEM_CALL_ERROR;
+            }
+            exit_program = 1;
+            exit_value = 1;
             return SYSTEM_CALL_ERROR;
-         
+        }
+
         if ((pid = fork()) < 0)
+        {
+            while (child_count) //Powerful ray of sunshine to obliterate any zombies
+            {
+                if (kill(child_pids[--child_count], SIGTERM))
+                    error = SYSTEM_CALL_ERROR;
+            }
+            exit_program = 1;
+            exit_value = 1;
             return SYSTEM_CALL_ERROR;
-        
-        
+        }
+
+
         if (!pid) // Child Process
         {
             // Hook output based on pipeline
@@ -1137,8 +1175,10 @@ err execute_external(char** tokens, redirect_ext* ex)
                 //Opens file in rw or a+
                 if ((fd_output = open(tokens[output_file], ex->section[i].cat? (O_CREAT | O_APPEND | O_RDWR):(O_CREAT | O_RDWR | O_TRUNC), S_IRWXU)) < 0)
                 {
-                    perror("File Error");
-                    exit(1);
+                    exit_program = true;
+                    exit_value = 1;
+                
+                    return SYSTEM_CALL_ERROR;
                 }
 
                 dup2(fd_output,STDOUT_FILENO);
@@ -1158,7 +1198,10 @@ err execute_external(char** tokens, redirect_ext* ex)
                 if ((fd_input = open(tokens[input_file], O_RDWR)) < 0)
                 {
                     perror("File Error");
-                    exit(1);
+                    exit_program = true;
+                    exit_value = 1;
+                
+                    return SYSTEM_CALL_ERROR;
                 }
 
                 dup2(fd_input, STDIN_FILENO);
@@ -1166,39 +1209,40 @@ err execute_external(char** tokens, redirect_ext* ex)
             }
             
             execvp(args[0], args);
-            perror("Exec Error");
 
-            if (fp) 
-                fclose(fp);
+            exit_program = true;
+            exit_value = 1;
                 
-            exit(EXIT_FAILURE);
+            return SYSTEM_CALL_ERROR;
         }
         else
             child_pids[child_count++] = pid;
         
-        if (i) // The first parent process
+        if (i) // All except the first iteration
         {
             close(previous_fd[0]);
             close(previous_fd[1]);
         }
-
     }
-    
     while (wait(&status) > 0); //Wait for all child processes to terminate.
     child_count = 0; // All children have terminated
 
-    if (WIFEXITED(status)) // Status of the last child process.
-    { 
+    if (error) // If this error is set, its because a SIGINT was sent.
+        return error;
+
+    if (WIFEXITED(status))
+    {
         exitcode = WEXITSTATUS(status);
         //Converts int to string
         sprintf(str, "%d", exitcode);
 
         //Stores exitcode in shell variable EXITCODE
-        if (error = node_edit(node_search("EXITCODE"), str)) 
-            fprintf(stderr,"Could not save exitcode\n");
-    } 
+        
+    }
+    else if (error = node_edit(node_search("EXITCODE"), "Abnormal termination")) 
+        return error;
 
-    return error;
+    return NONE;
 }
 
 //Redirects for internal commands.
@@ -1212,7 +1256,7 @@ err handle_redirect(char** tokens, charno state, int j, redirect_int* in)
         case OUTPUT_CAT: strcpy(in->output_cat_filename, tokens[in->redirect_start+j]); break;
         default: return INVALID_ARGS_ERROR;
     }
-    return 0;
+    return NONE;
 
 }
 err hook_streams(const redirect_int* in)
@@ -1221,7 +1265,7 @@ err hook_streams(const redirect_int* in)
     int fd_input;
     int fd_output;
     int fd_output_cat;
-    error = 0;
+    error = NONE;
 
     // Do the input and output have to be redirected?
     // Opens files, links them with respective stream.
@@ -1286,14 +1330,14 @@ err str_to_int(int* value, const char* string)
         return INVALID_ARGS_ERROR;
 
     *value = (int) num;
-    return 0;
+    return NONE;
 }
 char* get_input_from_file(FILE* fp)
 {
-    char line[BUFSIZE];
+    char line[BUFSIZ];
     error = 0;
 
-    if (!(fgets(line,BUFSIZE-1,fp)))
+    if (!(fgets(line,BUFSIZ-1,fp)))
         return NULL;
 
     int length = strlen(line);
@@ -1305,7 +1349,7 @@ char* get_input_from_file(FILE* fp)
         return NULL;
     }
     
-    //Change the last character with a null terminator
+    //Make sure last character is a null terminator
 
     if (line[length-2] == '\r')
         line[length-2] = '\0';

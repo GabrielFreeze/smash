@@ -8,7 +8,7 @@
 #include "includes/headers.h"
 #include "includes/linenoise-master/linenoise.h"
 
-const char* const errors[100] = {
+const char* const error_msg[100] = {
                     MEMORY_ERROR_MSG,
                     BUFFER_ERROR_MSG,
                     PARSE_ERROR_MSG,
@@ -41,14 +41,15 @@ const char* const internal_commands[TOKEN_SIZE] = {"exit", "echo","cd",
 
 int main(void)
 {
-
+    // Initalising variables
     char* input;
     redirect_ext ex;
     redirect_int in;
     int token_num;
     char** tokens = NULL;
 
-    char line[BUFSIZE];
+    int assign_indices[BUFSIZE];
+    int assign_count = 0;
 
     int var_indices_len;
     tokenchar_pair* var_indices = NULL;
@@ -56,7 +57,12 @@ int main(void)
     char* prompt;
     
     setbuf(stdout, NULL);
-    signal(SIGINT, SIGINT_handler);
+
+    if (signal(SIGINT, SIGINT_handler) == SIG_ERR)
+    {
+        perror("Signal Error");
+        exit(1);
+    }
 
     reset_in(&in);
     reset_ex(&ex);
@@ -102,9 +108,10 @@ int main(void)
             No character found: -1 + 1 == 0 == false
             Character is in position 0: 0+1 == 1 == true*/
             
-            int assign_count = 0;
-            int i,j,k;
-            int assign_indices[BUFSIZE];
+            int i = 0;
+            int j = 0;
+            int k = 0;
+
 
             for (i = 0; i < token_num && (k = contains_char(tokens[i],'='))+1; i++)
                 assign_indices[i%BUFSIZE] = k;
@@ -217,7 +224,9 @@ int main(void)
         free(input);
     }
 
+    if (fp) fclose(fp);
     free_vars(); //Free all shell variables
     free_stack(); //Free all items in the directory stack
+
     return exit_value;
 }
