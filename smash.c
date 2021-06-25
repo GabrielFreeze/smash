@@ -48,7 +48,7 @@ int main(void)
     int token_num;
     char** tokens = NULL;
 
-    int assign_indices[BUFSIZE];
+    int* assign_indices;
     int assign_count = 0;
 
     int var_indices_len;
@@ -100,34 +100,14 @@ int main(void)
         if (input && input[0] != '\0' && input[0] != '/')
         {
             //Tokenise the input.
-            if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len, &in, &ex)))
+            if (!(tokens = tokens_get(input, &token_num, &var_indices, &var_indices_len, &assign_indices, &assign_count, &in, &ex)))
                 goto end;
-            
-            /*
-            contains_char() returns the index of the first instance of the character it searches for, and -1 on failure.
-            No character found: -1 + 1 == 0 == false
-            Character is in position 0: 0+1 == 1 == true*/
             
             int i = 0;
             int j = 0;
             int k = 0;
 
-            
-            for (i = 0; i < token_num && (k = contains_char(tokens[i],'='))+1; i++)
-                assign_indices[i%BUFSIZE] = k;
-            
-            if (i >= BUFSIZE)
-            {
-                error = BUFFER_OVERFLOW_ERROR;
-                goto end;
-            }
-                
-            // assign_count is the number of variable_assignment tokens following one another starting from the beginning
-            assign_count = ex.execute_start = i;
-
-            
             //Loop through all tokens, performing variable expansion and assignment per token. 
-
             for (i = 0, j = 0; i < token_num; i++)
             {
                 //Perform variable expansion, if applicable.
@@ -152,7 +132,6 @@ int main(void)
             {
                 // There are 2 systems in place for handling redirects
                 // One is for internal commands, the other is for external commands.
-
 
                 //If there are pipes then it its surely not an internal command.
                 if (ex.pipe_count)
@@ -211,6 +190,7 @@ int main(void)
                 handle_error(); //Prints Error Message.
                 tokens_free(tokens,&token_num); //Frees array holding the tokens.
                 var_indices_free(var_indices, &var_indices_len); //Frees array holding variable positions.
+                assign_indices_free(assign_indices, &assign_count); //Frees array holding variable assignment positions
                 if (reset_streams()) perror("Redirect Error"); // Reverts to standard input/output streams
                 reset_ex(&ex); // Resets the 'ex' struct to default values
                 reset_in(&in); // Resets the 'in' struct to default values

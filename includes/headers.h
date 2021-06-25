@@ -148,7 +148,7 @@ extern char **environ;
 //Tokenisation
 int tokens_init(const char* string, redirect_int* in, redirect_ext* ex);
 charno char_type(const char* string, int j);
-char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, int* var_length, redirect_int* in, redirect_ext* ex);
+char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, int* var_length, int** assign_indices, int* assign_count, redirect_int* in, redirect_ext* ex);
 bool is_deref(const char* string, int upper);
 bool is_meta(const char* string, int j);
 
@@ -156,6 +156,7 @@ bool is_meta(const char* string, int j);
 void handle_error();
 void tokens_free(char** tokens, int* length);
 void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len);
+void assign_indices_free(int* assign_indices, int* assign_count);
 void reset_in(redirect_int* in);
 void reset_ex(redirect_ext* ex);
 err reset_streams();

@@ -338,13 +338,13 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
             
 
             if ((type == QUOTE && prev_type == QUOTE) ||
-            (prev_type == VARIABLE && type != NORMAL && type != QUOTE))
+            (prev_type == VARIABLE && type != NORMAL && type != QUOTE & type != EQUAL))
                 return 0;
             
 
             //If: The character is a meta character, and its previous characters are either normal or quote
             //Then: This means a token just ended, so increment token_count
-            if (!in_quotes && is_meta(string,i) && (prev_type == NORMAL || prev_type == QUOTE))
+            if (!in_quotes && is_meta(string,i) && (prev_type == NORMAL || prev_type == QUOTE || prev_type == EQUAL))
                 ++count;
         }
         prev_type = type;
@@ -355,6 +355,7 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
     if (type == NORMAL || type == QUOTE || type == EQUAL) 
         count++;
     
+    //Last character can't be any of these
     if (type == ESCAPE || type == VARIABLE)
         return 0;
 
@@ -459,14 +460,15 @@ bool is_deref(const char* string, int upper)
     return (upper-lower)%2;
 
 }
-char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, int* var_length, redirect_int* in, redirect_ext* ex)
+char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, int* var_length, int** assign_indices, int* assign_count, redirect_int* in, redirect_ext* ex)
 {  
     *length = 0;
     *var_indices = NULL;
+    *assign_indices = NULL;
     *var_length = 0;
-    // *assign_count = 0;
+    *assign_count = 0;
     tokenchar_pair* var_indices2;
-    // int* assign_indices2;
+    int* assign_indices2;
 
     int index = 0;
     int j = 0;
@@ -489,21 +491,26 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
     {
         error = PARSE_ERROR;
         return NULL;
-    }
-    
+    }   
     if (!(tokens = (char**) malloc(max_length * sizeof(char*))))
     {
         error = TOKENS_MEMORY_ERROR;
         return tokens;
     }
- 
-    //Lets assume the worst case scenario. All the tokens provided are variables that need to be expanded.
-    if(!(var_indices2 = (tokenchar_pair*) malloc(max_length * sizeof(tokenchar_pair))))
+    //Lets assume the worst case scenario. All the tokens provided are variables that need to be expanded/assigned.
+    if (!(var_indices2 = (tokenchar_pair*) malloc(max_length * sizeof(tokenchar_pair))))
     {
         error = VARINDICES_MEMORY_ERROR;
         return tokens;
+    } 
+    if (!(assign_indices2 = (int*) malloc(max_length * sizeof(int))))
+    {
+        error = MEMORY_ERROR;
+        return NULL;
     }
- 
+
+
+
     for (int i = 0; i < strlen(input); i++)
     {
         meta = is_meta(input, i);
@@ -537,26 +544,26 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
             meta = false;
         }
 
-        // if (type == EQUAL)
-        // {
-        //     if (consider_equals && !encountered_equals && *assign_count == index)
-        //     {
-        //         assign_indices2[(*assign_count)++] = j;
-        //         encountered_equals = true;
+        if (type == EQUAL)
+        {
+            if (consider_equals && !encountered_equals && *assign_count == index)
+            {
+                assign_indices2[(*assign_count)++] = j;
+                encountered_equals = true;
 
-        //         if (*assign_count == BUFSIZE)
-        //         {
-        //             error = BUFFER_OVERFLOW_ERROR;
-        //             return NULL;
-        //         }
-        //     }
-        //     else
-        //         type == NORMAL;
-        // }
+                if (*assign_count == BUFSIZE)
+                {
+                    error = BUFFER_OVERFLOW_ERROR;
+                    return NULL;
+                }
+            }
+            else
+                type == NORMAL;
+        }
 
         //Just like the token_init function, if a metacharacter terminated a string, then this is the end of a token
         //So lets save it in into tokens.
-        if (meta && (prev_type == NORMAL || prev_type == QUOTE))
+        if (meta && (prev_type == NORMAL || prev_type == QUOTE || prev_type == EQUAL))
         {
             if ((tokens[index] = (char*) malloc(TOKEN_SIZE)) == NULL)
                 {   
@@ -573,10 +580,10 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
             *length = index; 
             j = 0;
 
-            // if (encountered_equals)
-            //     encountered_equals = false;
-            // else
-            //     consider_equals = false;
+            if (encountered_equals)
+                encountered_equals = false;
+            else
+                consider_equals = false;
 
         }
 
@@ -603,8 +610,16 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
     
     
     *var_indices = var_indices2;
-    // *assign_indices = assign_indices2;
-    // ex->execute_start = *assign_count;
+    *assign_indices = assign_indices2;
+    ex->execute_start = *assign_count;
+
+    if ((in->redirect_start && in->redirect_start <= *assign_count) ||
+    (ex->pipe_start > 0 && ex->pipe_start <= *assign_count))
+    {
+        error = PARSE_ERROR;
+        return NULL;
+    }
+
 
     return tokens;
 
@@ -639,11 +654,19 @@ void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
     if (var_indices)
     {
         free(var_indices);
-            
         var_indices = NULL;
         *var_indices_len = -1;
     }
 
+}
+void assign_indices_free(int* assign_indices, int* assign_count)
+{
+    if (assign_indices)
+    {
+        free(assign_indices);
+        assign_indices = NULL;
+        *assign_count = -1;
+    }
 }
 err reset_streams()
 {
@@ -652,7 +675,7 @@ err reset_streams()
     /*If statements basically check wether the program was redirecting to/from a file in the first place
     and if so redirects back to standard input/output.*/
 
-    if (stdin_fd > 0)
+    if (stdin_fd > -1)
     {
         if (dup2(stdin_fd, STDIN_FILENO) < 0)
             error = SYSTEM_CALL_ERROR;
@@ -662,7 +685,7 @@ err reset_streams()
         
         stdin_fd = -1;
     }
-    if (stdout_fd > 0)
+    if (stdout_fd > -1)
     {
         if (dup2(stdout_fd, STDOUT_FILENO) < 0)
             error = SYSTEM_CALL_ERROR;
@@ -915,14 +938,20 @@ err assign_vars(char** tokens, int length, int i, int k)
 
     strcpy(current_token,tokens[i]);
 
+
+
     current_token[k] = 0;
     strcpy(key_value[0],current_token);
     strcpy(key_value[1], current_token+k+1);
 
+    if (!strlen(key_value[0]) || !strlen(key_value[1]))
+        return VARIABLE_ASSIGNMENT_ERROR;
+
+
     
-    for (int i = 0; i < strlen(key_value[0]); i++)
+    for (int j = 0; j < strlen(key_value[0]); j++)
     {
-        if (!vars_valid(key_value[0],i))
+        if (!vars_valid(key_value[0],j))
             return VARIABLE_NAME_ERROR;
     }
 
@@ -1044,7 +1073,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
                 node* current_node;
                 if (current_node = node_search(args[i]))
                 {
-                    if (error = node_delete(current_node));
+                    if (error = node_delete(current_node))
                         return error;
                 }
                 else
@@ -1156,7 +1185,7 @@ err execute_external(char** tokens, redirect_ext* ex)
     int status;
     int exitcode;
 
-    char str[10];
+    char exitcode_str[10];
     
     error = NONE;
 
@@ -1276,10 +1305,11 @@ err execute_external(char** tokens, redirect_ext* ex)
     {
         exitcode = WEXITSTATUS(status);
         //Converts int to string
-        sprintf(str, "%d", exitcode);
+        sprintf(exitcode_str, "%d", exitcode);
 
         //Stores exitcode in shell variable EXITCODE
-        
+        if (error = node_edit(node_search("EXITCODE"), exitcode_str))
+            return error; 
     }
     else if (error = node_edit(node_search("EXITCODE"), "Abnormal termination")) 
         return error;
@@ -1307,46 +1337,49 @@ err hook_streams(const redirect_int* in)
     int fd_input;
     int fd_output;
     int fd_output_cat;
+    bool cat = false;
     error = NONE;
 
+
+    for (int i = 0; i < in->redirect_count; i++)
+    {
+        if (in->redirect_indices[i] == OUTPUT)
+            cat = false;
+        else if (in->redirect_indices[i] == OUTPUT_CAT)
+            cat = true;
+    }
+    
     // Do the input and output have to be redirected?
     // Opens files, links them with respective stream.
+    //If any system call fails, the function exits
 
     if (in->input_filename[0])
     {
-        if ((fd_input = open(in->input_filename, O_RDWR)) == -1)
-            error = SYSTEM_CALL_ERROR;
-        else
-        {
-            stdin_fd = dup(STDIN_FILENO);
-            dup2(fd_input,STDIN_FILENO);
-            close(fd_input);
-        }
+        if ((fd_input = open(in->input_filename, O_RDWR)) < 0
+        || (stdin_fd = dup(STDIN_FILENO)) < 0
+        || dup2(fd_input, STDIN_FILENO) < 0
+        || (close(fd_input)))
+            return SYSTEM_CALL_ERROR;
     } 
-    if (in->output_filename[0])
-    {
-        if ((fd_output = open(in->output_filename, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) == -1)
-            error = SYSTEM_CALL_ERROR;
-        else
-        {
-            stdout_fd = dup(STDOUT_FILENO);
-            dup2(fd_output,STDOUT_FILENO);
-            close(fd_output);
-        }
-    }
-    if (in->output_cat_filename[0])
-    {
-        if ((fd_output = open(in->output_cat_filename, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) == -1)
-            error = SYSTEM_CALL_ERROR;
-        else
-        {
-            stdout_fd = dup(STDOUT_FILENO);
-            dup2(fd_output,STDOUT_FILENO); 
-            close(fd_output);
-        }
+    
 
+    if (cat)
+    {
+        if ((fd_output = open(in->output_cat_filename, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) < 0
+        || (stdout_fd = dup(STDOUT_FILENO)) < 0
+        || dup2(fd_output, STDOUT_FILENO) < 0
+        || (close(fd_output)))
+            return SYSTEM_CALL_ERROR;
     }
-
+    else
+    {
+        if (in->output_filename[0]  && ((fd_output = open(in->output_filename, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)) < 0
+                                    || (stdout_fd = dup(STDOUT_FILENO)) < 0
+                                    || dup2(fd_output, STDOUT_FILENO) < 0
+                                    || (close(fd_output))))
+            return SYSTEM_CALL_ERROR;
+    }
+    
     return error;
 }
 
