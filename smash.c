@@ -45,11 +45,12 @@ int main(void)
     char* input;
     redirect_ext ex;
     redirect_int in;
+
     int token_num;
     char** tokens = NULL;
 
-    int* assign_indices;
     int assign_count = 0;
+    int* assign_indices;
 
     int var_indices_len;
     tokenchar_pair* var_indices = NULL;
@@ -81,6 +82,7 @@ int main(void)
 
     while (!exit_program)
     {   
+        error = NONE;
         //Get the input from a file, or else from the command prompt.
         if (fp)
         {
@@ -123,7 +125,7 @@ int main(void)
                     //Expand all variables of token i
                 }
 
-                //Function 'assign_vars' looks for any '=' within the token and assigns variables accordingly.
+                
                 if ((i < assign_count) && (error = assign_vars(tokens, token_num, i, assign_indices[i])))
                     goto end;             
             }

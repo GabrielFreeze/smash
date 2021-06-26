@@ -10,6 +10,7 @@
         "type_traits": "c",
         "linenoise.h": "c",
         "stat.h": "c",
-        "fcntl.h": "c"
+        "fcntl.h": "c",
+        "signal.h": "c"
     }
 }

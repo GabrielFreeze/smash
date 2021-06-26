@@ -23,6 +23,7 @@ err node_insert(const char* const key, const char* const value, bool env)
     if (current_node = node_search(key))
         node_delete(current_node);
 
+    //Assign memory to the new node
     if  (!((new_node = (node*) malloc(sizeof(node))) &&
         ((new_node->key = (char*) malloc(strlen(key)+1)) && 
         (new_node->value = (char*) malloc(strlen(value)+1)))))
@@ -32,15 +33,16 @@ err node_insert(const char* const key, const char* const value, bool env)
     strcpy(new_node->value, value);
     new_node->env = env;
 
+    //Inserting new node
     if (!tail)
         tail = new_node;
     else
         head->prev = new_node;
 
-
     new_node->next = head;
     head = new_node;
     head->prev = NULL;
+
     if (env && setenv(key,value,true))
         return ENV_VARIABLE_ASSIGNMENT_ERROR;
         
@@ -50,10 +52,14 @@ err node_insert(const char* const key, const char* const value, bool env)
 node* node_search(const char* key)
 {
     node* current_node;
-
+    //If the linked list is empty
     if (!(current_node = head))
+    {
+        error = NODE_NOT_FOUND_ERROR;
         return NULL;
+    }
 
+    //Find first instance of that key
     while (current_node && strcmp(current_node->key,key))
         current_node = current_node->next;
 
@@ -61,22 +67,26 @@ node* node_search(const char* key)
 }
 err node_delete(node* current_node)
 {
+    //Node can't be NULL
     if (!current_node)
         return NODE_NOT_FOUND_ERROR;
     
+    //Remove environment variable equivelant
     if (current_node->env && unsetenv(current_node->key)) 
         return ENV_VARIABLE_NOT_FOUND_ERROR;
-
+    
+    //Removing links from the node
     if (current_node == head)
-      head = head->next;
-   else
-      current_node->prev->next = current_node->next; //The previous node will skip the current_node and point to the one after it.
+        head = head->next;
+    else
+        current_node->prev->next = current_node->next; //The previous node will skip the current_node and point to the one after it.
 
-   if (current_node == tail)
-      tail = current_node->prev;
-   else
-      current_node->next->prev = current_node->prev; //The next node will skip the current_node and point to the one before it.
+    if (current_node == tail)
+        tail = current_node->prev;
+    else
+        current_node->next->prev = current_node->prev; //The next node will skip the current_node and point to the one before it.
 
+    //Freeing the memory
     if (current_node->value)
         free(current_node->value);
 
@@ -90,12 +100,15 @@ err node_delete(node* current_node)
 }
 err node_edit(node* current_node, const char* value)
 {
+    //Node cant be NULL
     if (!current_node)
         return NODE_NOT_FOUND_ERROR;
-    
+
+    //Value cant be NULL
     if (!value)
         return NULL_GIVEN_ERROR;
-
+    
+    //Reallocating memory to fit the new value
     if (!(current_node->value = (char*) realloc(current_node->value, strlen(value)+1)))
         return MEMORY_ERROR;
         
@@ -113,11 +126,13 @@ void nodes_print(){
 }
 err node_export(node* current_node)
 {
+    //Node cant be NULL
     if (!current_node)
         return NODE_NOT_FOUND_ERROR;
     
     current_node->env = true;
 
+    //Add as environment variable
     if (setenv(current_node->key,current_node->value,1))
         return ENV_VARIABLE_ASSIGNMENT_ERROR;
 
@@ -131,14 +146,17 @@ bool is_full()
 }
 err push(const char* value)
 {
+    //Stack can't be full
     if (is_full())
         return STACK_FULL_ERROR;
     
+    //Allocating memory to new item
     if(!(stack[++top] = (char*) malloc(strlen(value)+1)))
         return MEMORY_ERROR;
 
     strcpy(stack[top],value);
 
+    //Changing directory 
     if (error = change_directory(value))
         return error;
 
@@ -160,6 +178,7 @@ err pop(char** value)
 }
 err peek(char** value)
 {
+    //Cant be empty
     if (!top)
         return STACK_EMPTY_ERROR;
 
@@ -167,13 +186,14 @@ err peek(char** value)
     if(!(value2 = (char*) malloc(strlen(stack[top])+1)))
         return MEMORY_ERROR;
 
+    //Returns a copy of the top most value
     strcpy(value2,stack[top]);
     *value = value2;
     return NONE;
 }
 err print_stack()
 {
-    for (int i = top; i >= 0; i--)
+    for (int i = top; i+1 ; i--)
         printf("%s  ",stack[i]);
     printf("\n");
 
@@ -181,7 +201,10 @@ err print_stack()
 }
 err change_topmost(const char* value)
 {   
+    //Removing top most value
     stack[top][0] = 0;
+
+    //Allocating new mmemory for the new value
     if (!(stack[top] = (char*) realloc(stack[top], strlen(value)+1)))
         return MEMORY_ERROR;
 
@@ -190,11 +213,12 @@ err change_topmost(const char* value)
 }
 err change_directory(const char* cwd)
 {
+    //New directory cant be NULL
     if (!cwd)
         return CWD_NOT_FOUND_ERROR;
 
     if (chdir(cwd)) //Changing the directory
-        return SYSTEM_CALL_ERROR; //Change this to perror maybe
+        return SYSTEM_CALL_ERROR;
 
     char* new_cwd;
     if (!(new_cwd = getcwd(NULL,0))) //Getting the new directory
@@ -336,7 +360,8 @@ int tokens_init(const char* string, redirect_int* in, redirect_ext* ex)
             if (type == QUOTE)
                 in_quotes ^= true;
             
-
+            //Cant be 2 double quotes next to each other.
+            // Variable character can only prepend NORMAL QUOTE or EQUAL
             if ((type == QUOTE && prev_type == QUOTE) ||
             (prev_type == VARIABLE && type != NORMAL && type != QUOTE & type != EQUAL))
                 return 0;
@@ -465,8 +490,10 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
     *length = 0;
     *var_indices = NULL;
     *assign_indices = NULL;
+
     *var_length = 0;
     *assign_count = 0;
+
     tokenchar_pair* var_indices2;
     int* assign_indices2;
 
@@ -484,8 +511,6 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
     charno type = BLANK;
     charno prev_type = BLANK;
 
-    // int assign_indices[BUFSIZE];
-    // int assign_count = 0;
 
     if (!(max_length = tokens_init(input, in, ex)))
     {
@@ -510,13 +535,15 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
     }
 
 
-
+    //For every character
     for (int i = 0; i < strlen(input); i++)
     {
+        //Get the type of current and pevious character
         meta = is_meta(input, i);
         prev_type = type;
         type = char_type(input, i);
 
+        //j represents the current number of characters in a token. j cant't exceed TOKEN_SIZE
         if (j == TOKEN_SIZE-1)
         {
             error =  BUFFER_OVERFLOW_ERROR;
@@ -524,7 +551,6 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
         }
 
         //Lets store the index to the variable for later use (when we perform expansion)
-
         if (type == VARIABLE)
         {
             var_indices2[*var_length].token_index = index;
@@ -544,6 +570,7 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
             meta = false;
         }
 
+        //Algorithm to determine wether an equals character has special menaing or not. See **
         if (type == EQUAL)
         {
             if (consider_equals && !encountered_equals && *assign_count == index)
@@ -580,6 +607,7 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
             *length = index; 
             j = 0;
 
+            //**
             if (encountered_equals)
                 encountered_equals = false;
             else
@@ -587,9 +615,7 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
 
         }
 
-        else if (meta || (type == ESCAPE))
-            continue;
-        else
+        else if (!meta && (type != ESCAPE))
             current_token[j++] = input[i];
                 
     }
@@ -608,11 +634,15 @@ char** tokens_get(const char* input, int* length, tokenchar_pair** var_indices, 
         *length = index;
     }
     
-    
+    // Settting parameters to point to the dynamically allocated counter parts.
     *var_indices = var_indices2;
     *assign_indices = assign_indices2;
+
+    // Start executing by reading the first token immideatly after the last variable assigment statement
     ex->execute_start = *assign_count;
 
+    //Redirects cannot be between variable assignment statements
+    //Pipes cannot be between variable assignment statements
     if ((in->redirect_start && in->redirect_start <= *assign_count) ||
     (ex->pipe_start > 0 && ex->pipe_start <= *assign_count))
     {
@@ -636,13 +666,14 @@ void handle_error()
 }
 void tokens_free(char** tokens, int* length)
 {
+    //If tokens is NULL, that means no memory is allocated to it
     if (tokens)
     {
         for (int i = 0; i < *length; i++)
             free(tokens[i]);
 
-        if (*length > 0)
-            free(tokens);
+        
+        free(tokens);
 
         *length = -1;
         tokens = NULL;
@@ -651,6 +682,7 @@ void tokens_free(char** tokens, int* length)
 }
 void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
 {
+    //If var_indices is NULL, that means no memory is allocated to it
     if (var_indices)
     {
         free(var_indices);
@@ -661,6 +693,7 @@ void var_indices_free(tokenchar_pair* var_indices, int* var_indices_len)
 }
 void assign_indices_free(int* assign_indices, int* assign_count)
 {
+    //If assign_indices is NULL, that means no memory is allocated to it
     if (assign_indices)
     {
         free(assign_indices);
@@ -757,7 +790,8 @@ err init_vars(void)
             return error;
     }
 
-    //Checking if PATH, USER and HOME were set
+    //If  PATH HOME USER PROMPT TERMINAL EXITCODE do not exist,
+    //Then set them to their default values
 
     int uid = geteuid(); // Get effective user id
     struct passwd *pass = getpwuid(uid); // Get password file entry structure
@@ -867,7 +901,7 @@ err expand_vars(char* tokens[TOKEN_SIZE], tokenchar_pair* var_indices, int var_i
         token[end] = '\0';
         offset = 2;
     }
-    else //Using  <Any Chars> $... <Illegeal Chars> notation
+    else //Using  <Any Chars>$...<Illegeal Chars> notation
     {
         //Stop until you encounter an illegal character,
 
@@ -939,7 +973,7 @@ err assign_vars(char** tokens, int length, int i, int k)
     strcpy(current_token,tokens[i]);
 
 
-
+    //Get the key and value
     current_token[k] = 0;
     strcpy(key_value[0],current_token);
     strcpy(key_value[1], current_token+k+1);
@@ -948,7 +982,7 @@ err assign_vars(char** tokens, int length, int i, int k)
         return VARIABLE_ASSIGNMENT_ERROR;
 
 
-    
+    //Check if valid name
     for (int j = 0; j < strlen(key_value[0]); j++)
     {
         if (!vars_valid(key_value[0],j))
@@ -1011,6 +1045,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
             for(int i = 0; i < arg_num; i++)
                 printf("%s ",args[i]);
             printf("\n");
+
             return NONE;
         }break;
         case CD_CMD:
@@ -1051,6 +1086,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
             if (!arg_num)
                 return INVALID_ARGS_ERROR;
 
+            //For every argument passed in, check if it is a node and then export it
             for (int i = 0; i < arg_num; i++)
             {
                 node* current_node;
@@ -1068,6 +1104,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
             if (!arg_num)
                 return INVALID_ARGS_ERROR;
 
+            //For every argument passed in, check if it is a node and then unset it
             for (int i = 0; i < arg_num; i++)
             {
                 node* current_node;
@@ -1158,6 +1195,7 @@ err execute_internal(char* args[TOKEN_SIZE], int arg_num, cmdno j)
             if (arg_num != 1)
                 return INVALID_ARGS_ERROR;
 
+            //Set fp to the file to read from
             if (!(fp = fopen(args[0],"r")))
                 return SYSTEM_CALL_ERROR;
 
@@ -1187,24 +1225,24 @@ err execute_external(char** tokens, redirect_ext* ex)
 
     char exitcode_str[10];
     
-    error = NONE;
+    
 
     char* args[BUFSIZE]; // Used to hold the arguments to pass to execvp
     int argc;
 
     for (int i = 0; i < ex->pipe_count+1; i++, previous_fd = current_fd, current_fd += 2)
     {
-        // This for loops iterates over the a set of arguments seperated by pipes.
+        error = NONE;
+        // This for loops iterates over a set of arguments seperated by pipes.
         // If the set of arguments has redirection files specified, they are not iterated over.
         argc = 0;
         for (int j = ex->execute_start; j < ex->pipe_indices[i]-ex->section[i].redirect_count; j++)
             args[argc++] = tokens[j];
         args[argc] = NULL;
         
-        // The next iterations starts from  the end of the previous.
+        // The next iterations starts from the end of the previous.
         ex->execute_start = ex->pipe_indices[i];
         
-
         if (i < ex->pipe_count && pipe(current_fd))
         {
             while (child_count) //Powerful ray of sunshine to obliterate any zombies
@@ -1235,64 +1273,71 @@ err execute_external(char** tokens, redirect_ext* ex)
             // Hook output based on pipeline
             if (i < ex->pipe_count)
             {
-                close(current_fd[0]);
-                dup2(current_fd[1], STDOUT_FILENO);
-                close(current_fd[1]);
+                if (close(current_fd[0])
+                || dup2(current_fd[1], STDOUT_FILENO) < 0
+                || close(current_fd[1]))
+                {
+                    exit_program = exit_value = 1;
+                    return SYSTEM_CALL_ERROR;
+                }
                 
             }
             //Hook output if the user specified a file
             if (output_file = ex->section[i].output)
             {
                 //Opens file in rw or a+
-                if ((fd_output = open(tokens[output_file], ex->section[i].cat? (O_CREAT | O_APPEND | O_RDWR):(O_CREAT | O_RDWR | O_TRUNC), S_IRWXU)) < 0)
+                if ((fd_output = open(tokens[output_file], ex->section[i].cat? (O_CREAT | O_APPEND | O_RDWR):(O_CREAT | O_RDWR | O_TRUNC), S_IRWXU)) < 0
+                || dup2(fd_output,STDOUT_FILENO) < 0
+                || close(fd_output))
                 {
-                    exit_program = true;
-                    exit_value = 1;
-                
+                    exit_program = exit_value = 1;
                     return SYSTEM_CALL_ERROR;
                 }
-
-                dup2(fd_output,STDOUT_FILENO);
-                close(fd_output); 
             }
             
             // Hooks input based on pipeline
             if (i)
             {
-                close(previous_fd[1]);
-                dup2(previous_fd[0],STDIN_FILENO);
-                close(previous_fd[0]);
+                if (close(previous_fd[1])
+                || dup2(previous_fd[0], STDIN_FILENO) < 0
+                || close(previous_fd[0]))
+                {
+                    exit_program = exit_value = 1;
+                    return SYSTEM_CALL_ERROR;
+                }
             }
             // Hooks input if the user specified a file
             if (input_file = ex->section[i].input)
             {
-                if ((fd_input = open(tokens[input_file], O_RDWR)) < 0)
+                if ((fd_input = open(tokens[input_file], O_RDWR)) < 0
+                || dup2(fd_input,STDIN_FILENO) < 0
+                || close(fd_input))
                 {
-                    perror("File Error");
-                    exit_program = true;
-                    exit_value = 1;
-                
+                    exit_program = exit_value = 1;
                     return SYSTEM_CALL_ERROR;
-                }
-
-                dup2(fd_input, STDIN_FILENO);
-                close(fd_input);
+                }  
             }
             
             execvp(args[0], args);
 
-            exit_program = true;
-            exit_value = 1;
-                
+            exit_program = exit_value = 1;        
             return SYSTEM_CALL_ERROR;
         }
-        else
+        else // Parent
             child_pids[child_count++] = pid;
         
-        if (i) // All except the first iteration
+        if (i) // All except the first parent iteration
         {
-            close(previous_fd[0]);
-            close(previous_fd[1]);
+            if (close(previous_fd[0])
+            || close(previous_fd[1]))
+            {
+                while (child_count) //Powerful ray of sunshine to obliterate any zombies
+                {
+                    if (kill(child_pids[--child_count], SIGTERM))
+                        error = SYSTEM_CALL_ERROR;
+                }
+            }
+            
         }
     }
     while (wait(&status) > 0); //Wait for all child processes to terminate.
@@ -1320,7 +1365,7 @@ err execute_external(char** tokens, redirect_ext* ex)
 //Redirects for internal commands.
 err handle_redirect(char** tokens, charno state, int j, redirect_int* in)
 {
-    //What redirect is it?
+    //Copies the token refering to the filename to the respective value in in
     switch (state)
     {
         case INPUT: strcpy(in->input_filename, tokens[in->redirect_start+j]); break;
@@ -1333,14 +1378,11 @@ err handle_redirect(char** tokens, charno state, int j, redirect_int* in)
 }
 err hook_streams(const redirect_int* in)
 {
-    int match = 1;
     int fd_input;
     int fd_output;
-    int fd_output_cat;
     bool cat = false;
-    error = NONE;
 
-
+    //Checks which output redirect should take precedence based on which is last
     for (int i = 0; i < in->redirect_count; i++)
     {
         if (in->redirect_indices[i] == OUTPUT)
@@ -1361,8 +1403,8 @@ err hook_streams(const redirect_int* in)
         || (close(fd_input)))
             return SYSTEM_CALL_ERROR;
     } 
-    
 
+    
     if (cat)
     {
         if ((fd_output = open(in->output_cat_filename, O_CREAT | O_APPEND | O_RDWR, S_IRWXU)) < 0
@@ -1412,11 +1454,13 @@ char* get_input_from_file(FILE* fp)
     char line[BUFSIZ];
     error = NONE;
 
+    //Get line
     if (!(fgets(line,BUFSIZ-1,fp)))
         return NULL;
 
     int length = strlen(line);
 
+    //Allocate memory to the input
     char* input;
     if (!(input = (char*) malloc(length)))
     {
@@ -1433,7 +1477,7 @@ char* get_input_from_file(FILE* fp)
 
     strcpy(input,line);
 
-
+    
     return input;
 
 }
